@@ -2,7 +2,15 @@
 // Body: { resume: string, jobDescription: string }
 // The Gemini API key lives ONLY here (process.env.GEMINI_API_KEY), never in the browser.
 
-const MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+// gemini-2.5-* is no longer available to new API keys (404), so default to a stable 3.x release.
+const MODEL = process.env.GEMINI_MODEL || 'gemini-3.5-flash';
+// Tried once if the main model is overloaded (503), rate-limited (429) or unavailable (404).
+// Set GEMINI_FALLBACK_MODEL to an empty string to disable.
+const FALLBACK_MODEL = process.env.GEMINI_FALLBACK_MODEL ?? 'gemini-3.1-flash-lite';
+// Gemini 3 thinking depth: "minimal" | "low" | "medium" | "high".
+const THINKING_LEVEL = process.env.GEMINI_THINKING_LEVEL || 'low';
+// Stay under the 60 s Vercel limit (vercel.json) so the browser gets JSON, not a timeout page.
+const GEMINI_TIMEOUT_MS = 45000;
 const PROMPT_VERSION = 'v1';
 
 const LIMITS = {
@@ -143,55 +151,32 @@ export default async function handler(req, res) {
     `<job_description>\n${stripTags(jobDescription)}\n</job_description>\n\n` +
     'Analyze the resume against the job description and return the JSON object.';
 
-  const generationConfig = {
-    temperature: 0.2,
-    maxOutputTokens: 8192,
-    responseMimeType: 'application/json',
-    responseSchema: RESPONSE_SCHEMA,
-  };
-  // 2.5 models "think" before answering; thinking tokens count toward maxOutputTokens,
-  // so cap the budget to leave room for the JSON answer.
-  if (MODEL.startsWith('gemini-2.5')) {
-    generationConfig.thinkingConfig = { thinkingBudget: 2048 };
+  let usedModel = MODEL;
+  let call = await callGemini(MODEL, apiKey, userPrompt);
+  if (!call.ok && [404, 429, 503].includes(call.status) && FALLBACK_MODEL && FALLBACK_MODEL !== MODEL) {
+    console.warn(`[analyze] retrying with fallback model=${FALLBACK_MODEL} after HTTP ${call.status} from ${MODEL}`);
+    usedModel = FALLBACK_MODEL;
+    call = await callGemini(FALLBACK_MODEL, apiKey, userPrompt);
   }
 
-  let geminiRes;
-  try {
-    geminiRes = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(MODEL)}:generateContent`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          // Header instead of ?key= so the key never shows up in URLs or request logs.
-          'x-goog-api-key': apiKey,
-        },
-        body: JSON.stringify({
-          systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
-          contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
-          generationConfig,
-        }),
-      }
-    );
-  } catch (err) {
-    console.error('Network error calling Gemini:', err);
-    return res.status(502).json({ error: 'Could not reach the AI service. Please try again.' });
-  }
-
-  const data = await geminiRes.json().catch(() => null);
-
-  if (!geminiRes.ok) {
-    // Log the real reason for you (Vercel → Logs); send a safe message to the browser.
-    console.error('Gemini error', geminiRes.status, JSON.stringify(data?.error || data));
-    if (geminiRes.status === 429) {
+  if (!call.ok) {
+    // The real cause is already logged in callGemini (Vercel → Logs); the browser gets a safe message.
+    if (call.status === 'timeout') {
+      return res.status(504).json({ error: 'The AI took too long to respond. Please try again.' });
+    }
+    if (call.status === 'network') {
+      return res.status(502).json({ error: 'Could not reach the AI service. Please try again.' });
+    }
+    if (call.status === 429) {
       return res.status(429).json({ error: 'AI rate limit reached. Wait about a minute and try again.' });
     }
-    if (geminiRes.status === 503) {
+    if (call.status === 503) {
       return res.status(503).json({ error: 'The AI model is overloaded right now. Try again in a moment.' });
     }
     return res.status(502).json({ error: 'The AI service returned an error. Please try again.' });
   }
 
+  const data = call.data;
   if (data?.promptFeedback?.blockReason) {
     return res.status(422).json({ error: `The input was blocked by the AI safety filter (${data.promptFeedback.blockReason}).` });
   }
@@ -203,7 +188,7 @@ export default async function handler(req, res) {
     .join('');
 
   if (!text) {
-    console.error('Empty Gemini response, finishReason:', candidate?.finishReason);
+    console.error(`[analyze] empty Gemini response model=${usedModel} finishReason=${candidate?.finishReason}`);
     const reason = candidate?.finishReason === 'MAX_TOKENS'
       ? 'The AI response was cut off. Try a shorter resume or job description.'
       : 'The AI returned an empty response. Please try again.';
@@ -214,14 +199,81 @@ export default async function handler(req, res) {
   try {
     analysis = JSON.parse(text);
   } catch {
-    console.error('Gemini returned invalid JSON, finishReason:', candidate?.finishReason, text.slice(0, 500));
+    console.error(`[analyze] invalid JSON model=${usedModel} finishReason=${candidate?.finishReason}`, text.slice(0, 500));
     return res.status(502).json({ error: 'The AI returned malformed output. Please try again.' });
   }
 
   const result = normalizeAnalysis(analysis, resume);
   result.prompt_version = PROMPT_VERSION;
-  result.model = MODEL;
+  result.model = usedModel;
   return res.status(200).json(result);
+}
+
+function buildGenerationConfig(model) {
+  const config = {
+    temperature: 0.2,
+    maxOutputTokens: 8192,
+    responseMimeType: 'application/json',
+    responseSchema: RESPONSE_SCHEMA,
+  };
+  // Thinking tokens count toward maxOutputTokens, so limit thinking to leave room for the JSON.
+  // Gemini 3 uses thinkingLevel; 2.5 used a numeric thinkingBudget. Aliases like
+  // gemini-flash-latest get no thinking setting, since the model behind them can change.
+  if (model.startsWith('gemini-3')) {
+    config.thinkingConfig = { thinkingLevel: THINKING_LEVEL };
+  } else if (model.startsWith('gemini-2.5')) {
+    config.thinkingConfig = { thinkingBudget: 2048 };
+  }
+  return config;
+}
+
+// Returns { ok: true, data } or { ok: false, status } where status is an HTTP code, 'timeout' or 'network'.
+// Logs the model, HTTP status and Google's error message — never the key.
+async function callGemini(model, apiKey, userPrompt) {
+  const started = Date.now();
+  let response;
+  try {
+    response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          // Header instead of ?key= so the key never shows up in URLs or request logs.
+          'x-goog-api-key': apiKey,
+        },
+        body: JSON.stringify({
+          systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
+          contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
+          generationConfig: buildGenerationConfig(model),
+        }),
+        signal: AbortSignal.timeout(GEMINI_TIMEOUT_MS),
+      }
+    );
+  } catch (err) {
+    const timedOut = err?.name === 'TimeoutError' || err?.name === 'AbortError';
+    console.error(`[analyze] Gemini ${timedOut ? 'timeout' : 'network error'} model=${model} after ${Date.now() - started}ms: ${redact(err?.message, apiKey)}`);
+    return { ok: false, status: timedOut ? 'timeout' : 'network' };
+  }
+
+  const data = await response.json().catch(() => null);
+  if (!response.ok) {
+    const e = data?.error || {};
+    console.error(
+      `[analyze] Gemini HTTP ${response.status} model=${model} status=${e.status || '-'} ` +
+      `message=${redact(e.message || JSON.stringify(data)?.slice(0, 300), apiKey)}`
+    );
+    return { ok: false, status: response.status };
+  }
+
+  console.log(`[analyze] Gemini OK model=${model} ${Date.now() - started}ms finishReason=${data?.candidates?.[0]?.finishReason} ` +
+    `tokens=${JSON.stringify(data?.usageMetadata || {})}`);
+  return { ok: true, data };
+}
+
+// Defensive: make sure the key can never end up in a log line, even if an error message echoes it.
+function redact(text, secret) {
+  return String(text ?? '').split(secret).join('[REDACTED]');
 }
 
 function validateInput(resume, jobDescription) {

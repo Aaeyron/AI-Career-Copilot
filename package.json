@@ -6,6 +6,7 @@
   "type": "module",
   "scripts": {
     "dev": "vercel dev",
-    "test:api": "node tests/smoke-test.mjs"
+    "test:api": "node tests/smoke-test.mjs",
+    "test:e2e": "node tests/e2e.mjs"
   }
 }

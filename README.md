@@ -13,13 +13,24 @@ Browser (index.html)
 Vercel serverless function (api/analyze.js)
    │  validates input, adds SYSTEM_PROMPT, reads GEMINI_API_KEY from env
    ▼
-Gemini API (gemini-2.5-flash, responseSchema → strict JSON)
-   │
+Gemini API (gemini-3.5-flash, responseSchema → strict JSON)
+   │  on 503/429/404 → retried once on gemini-3.1-flash-lite
    ▼
 Function normalizes the JSON (types, ranges, keyword check) → browser renders it
 ```
 
 The API key exists only as a server environment variable. It is never sent to the browser and never committed.
+
+## Model choice
+
+| Setting | Default | Why |
+|---------|---------|-----|
+| `GEMINI_MODEL` | `gemini-3.5-flash` | Stable, dated release (not a preview, not a moving `-latest` alias). Supports `responseSchema` + JSON mode and Gemini 3 `thinkingLevel`. `gemini-2.5-flash` returns 404 for new API keys. |
+| `GEMINI_FALLBACK_MODEL` | `gemini-3.1-flash-lite` | Used once when the main model is overloaded (503), rate-limited (429) or unavailable (404). Free-tier quotas are per model, so this also helps with 429s. Set it to an empty string to disable. |
+| `GEMINI_THINKING_LEVEL` | `low` | Thinking tokens count toward `maxOutputTokens` (8192). `low` keeps latency well under the 60 s function limit. |
+
+The response's `model` field (shown under the results) says which model actually answered.
+To debug a failure, open Vercel → your project → **Logs**, and search for `[analyze]`. Each Gemini call logs the model, HTTP status and Google's error message (never the key).
 
 ## Prompt engineering
 
@@ -57,6 +68,7 @@ npm install -g vercel          # once
 vercel login                   # once
 cp .env.example .env.local     # then put your real key in .env.local
 npm run test:api               # offline test of the API function (no key needed)
+npm run test:e2e -- R1 JD-A    # one real Gemini call with samples from TEST_PLAN.md
 vercel dev                     # http://localhost:3000
 ```
 

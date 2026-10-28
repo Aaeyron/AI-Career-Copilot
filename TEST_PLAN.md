@@ -231,9 +231,11 @@ Patient assessment, IV therapy, electronic health records, team coordination
 
 ## Results log (fill in)
 
+Run any pair from the terminal with `npm run test:e2e -- R1 JD-A` (add `--json` for the full output).
+
 | Date | Prompt | Test | Score | In range? | Keyword errors | Generic items? | Notes |
 |------|--------|------|-------|-----------|----------------|----------------|-------|
-| | v1 | 1 | | | | | |
+| 2026-10-30 | v1 | 1 | 62, 62 | Yes | None (`_filtered_missing` empty) | No | Answered by 3.1-flash-lite after a 503 from 3.5-flash. 2 of 3 improvement examples invented facts (MAE/RMSE, DB query optimization). See PROMPT_LOG. |
 | | v1 | 2 | | | | | |
 | | v1 | 3 | | | | | |
 | | v1 | 4 | | | | | |
