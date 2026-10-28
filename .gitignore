@@ -1,0 +1,16 @@
+# Secrets — never commit real keys
+.env
+.env.*
+!.env.example
+
+# Vercel CLI project link (created by `vercel dev` / `vercel link`)
+.vercel/
+
+# Dependencies and OS/editor junk
+node_modules/
+.DS_Store
+Thumbs.db
+.vscode/
+
+# Old client-side starter (had a slot for the API key in the browser)
+ai-career-copilot-starter.html

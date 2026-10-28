@@ -1,0 +1,11 @@
+{
+  "name": "ai-career-copilot",
+  "version": "1.0.0",
+  "private": true,
+  "description": "AI resume analyzer: ATS score, keyword gaps and concrete fixes, powered by Gemini via a Vercel serverless function.",
+  "type": "module",
+  "scripts": {
+    "dev": "vercel dev",
+    "test:api": "node tests/smoke-test.mjs"
+  }
+}
