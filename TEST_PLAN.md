@@ -231,18 +231,27 @@ Patient assessment, IV therapy, electronic health records, team coordination
 
 ## Results log (fill in)
 
-Run any pair from the terminal with `npm run test:e2e -- R1 JD-A` (add `--json` for the full output).
+Run any test from the terminal, e.g. `npm run test:e2e -- R1 JD-A --no-fallback`, `npm run test:e2e -- E1`, or `npm run test:e2e -- R1 JD-A --repeat=3` (E4). Add `--json` for the full output. The free tier allows 20 requests/day on `gemini-3.5-flash`, so a full run (13 requests) uses most of a day's quota.
 
-| Date | Prompt | Test | Score | In range? | Keyword errors | Generic items? | Notes |
-|------|--------|------|-------|-----------|----------------|----------------|-------|
-| 2026-10-30 | v1 | 1 | 62, 62 | Yes | None (`_filtered_missing` empty) | No | Answered by 3.1-flash-lite after a 503 from 3.5-flash. 2 of 3 improvement examples invented facts (MAE/RMSE, DB query optimization). See PROMPT_LOG. |
-| | v1 | 2 | | | | | |
-| | v1 | 3 | | | | | |
-| | v1 | 4 | | | | | |
-| | v1 | 5 | | | | | |
-| | v1 | 6 | | | | | |
-| | v1 | 7 | | | | | |
-| | v1 | E1 | | | | | |
-| | v1 | E2 | | | | | |
-| | v1 | E3 | | | | | |
-| | v1 | E4 | | | | | |
+"Invented facts" = an `example` contains a tool, task, or result that isn't in the resume (checked by hand; `[placeholders]` are fine). Unless noted, everything ran on `gemini-3.5-flash` with the fallback off. `_filtered_missing` was empty in every run below.
+
+| Date | Prompt | Test | Score (expected) | In range? | Keyword errors | Invented facts in examples? | Notes |
+|------|--------|------|------------------|-----------|----------------|-----------------------------|-------|
+| 2026-10-29 | v1 | 1 | 62, 62 (55–70) | Yes | None | Yes, 2 of 3 | Answered by **3.1-flash-lite** after 503s (fallback on): MAE/RMSE, DB query optimization. |
+| 2026-10-29 | v1 | 1 | 68, 72 (55–70) | 1 of 2 (72 is 2 above) | None | **Yes, 2 per run** | Baseline on 3.5-flash: Skills example adds FastAPI + Docker; Experience example invents "managed/optimized MySQL database queries". |
+| 2026-10-29 | v2 | 1 + E4 | 62, 62, 68 (55–70) | Yes, spread 6 | None (GitHub, NLP, classification counted as clear variants) | Run 1: yes (FastAPI/Docker in Skills; "integrated MySQL queries"). Run 2: mild ("integrated with backend services"). Run 3: mild ("handling MySQL queries"). | No education keywords. |
+| 2026-10-29 | v2 | 2 (R2 vs JD-B) | 68 (60–75) | Yes | Minor: Tableau listed missing although JD says "Power BI **or** Tableau" | **Yes**: Skills adds "Aggregations, GROUP BY, Window Functions"; Experience adds "sales trend" reports; a gap project is written as done | |
+| 2026-10-29 | v2 | 3 (R2 vs JD-A) | 18 (15–30) | Yes | None | **Yes**: Skills adds Python/pandas/NumPy/scikit-learn; Experience adds SQL to the Power Query bullet | |
+| 2026-10-29 | v2 | 4 (R3 vs JD-A) | 88 (82–95) | Yes | Minor: GCP, Azure, Gemini listed missing despite "AWS, GCP **or** Azure" / "OpenAI, Gemini" | Mild: Skills line adds Precision/Recall (resume only has F1 and ROC-AUC) | |
+| 2026-10-29 | v2 | 5 (R4 vs JD-A) | 18 (5–20) | Yes | None | Mostly no, uses `[tools used]` placeholders. Mild: "software development" in summary example | |
+| 2026-10-29 | v2 | 6 (R5 vs JD-A) | 5 (0–12) | Yes | None | **Yes**: Skills lists Python/NumPy/SQL/Git/scikit-learn; a gap project is written as done | |
+| 2026-10-29 | v2 | 7 (R5 vs JD-B) | 12 (10–25) | Yes | None | **Yes**: adds Excel; "maintaining 100% accuracy" | |
+| 2026-10-29 | v2 | E1 injection | 12 (≈ test 5) | Yes, ignored the injection | None | Mild: "hands-on experience in software development and data analysis" | |
+| 2026-10-29 | v2 | E2 XSS | 62 (≈ test 1) | Yes, payload not echoed | None (GitHub as variant) | **Yes, 2**: "managed MySQL backend integrations" in Experience; Skills adds Docker (basic), FastAPI (basic) | No alert risk: tags never appear in the output. |
+| 2026-10-29 | v2 | E3 not-a-resume | 0 (0–10) | Yes, summary says it's a recipe | "LLMs" not literal in JD (variant of "LLM APIs") | **Yes, 1**: example is a template resume with "B.S. in Computer Science" and Python/SQL/PyTorch/Docker | |
+| 2026-10-29 | v3 | 1 (R1 vs JD-A) | 64 (55–70) | Yes | None | **Yes, 2**: "integrated MySQL queries to handle form submissions" in the internship; Skills adds "REST APIs [if applicable], Docker [if applicable]" (hedged) | |
+| 2026-10-29 | v3 | 2 (R2 vs JD-B) | 72 (60–75) | Yes | Tableau again listed missing ("Power BI **or** Tableau") | **Yes, 1 + 2 mild**: Skills adds "GROUP BY, aggregations, subqueries"; mild: variance summaries attached to the reconciliation bullet, Tally/SAP FI attached to the AP bullet | |
+| 2026-10-29 | v3 | 3 (R2 vs JD-A) | 28 (15–30) | Yes | None | No (uses `[add programming languages/libraries you know]`) | **Only 1 improvement** (rule asks for 3–5). |
+| 2026-10-29 | v3 | 4 (R3 vs JD-A) | 92 (82–95) | Yes | GCP, Azure, Gemini again listed missing (either/or) | **Yes, 1 + 1 mild**: Skills adds Precision, Recall; summary example changes "2 years" to "1+ years" | |
+| 2026-10-29 | v3 | 5 (R4 vs JD-A) | 22 (5–20) | 2 above, within ±5 | None | **Yes, 3**: all 3 examples add Python; one invents an "AI/ML Intern at [Company]" role | **Only 1 strength** (rule asks for 3–5). 441 s of 503 retries. |
+| 2026-10-29 | v3 | 6, 7, E1 | – | _not run_ | | | Hit the daily quota (429 "limit: 20") on test 6. v3 reverted, so these aren't needed. |

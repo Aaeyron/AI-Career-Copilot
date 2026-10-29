@@ -11,7 +11,7 @@ const FALLBACK_MODEL = process.env.GEMINI_FALLBACK_MODEL ?? 'gemini-3.1-flash-li
 const THINKING_LEVEL = process.env.GEMINI_THINKING_LEVEL || 'low';
 // Stay under the 60 s Vercel limit (vercel.json) so the browser gets JSON, not a timeout page.
 const GEMINI_TIMEOUT_MS = 45000;
-const PROMPT_VERSION = 'v1';
+const PROMPT_VERSION = 'v2';
 
 const LIMITS = {
   resumeMin: 50,
@@ -54,12 +54,13 @@ Return ONLY a JSON object matching the response schema. Field rules:
 - summary: 2-3 sentences. Name the main reason for the score and the single biggest gap.
 - matched_keywords: up to 12 job-description terms that ARE in the resume (exactly or as a clear variant), most important first.
 - missing_keywords: up to 12 job-description terms that are NOT in the resume, most important first. Use the job description's wording. Only concrete skills, tools, or qualifications — never soft filler like "passionate" or "fast learner".
+- Both keyword lists hold only skills, tools, technologies, and certifications. Never put degrees, majors, or education requirements (e.g. "IT degree", "B.Tech", "Computer Science") in matched_keywords or missing_keywords; judge education only in the score and summary.
 - strengths: 3-5 items. Each must cite specific evidence from the resume (a project, employer, tool, or number).
 - improvements: 3-5 objects, most impactful first:
   - section: the resume section to change ("Summary", "Experience", "Projects", "Skills", "Education", "Certifications", or "Formatting")
   - issue: what is weak, naming or quoting the specific line
   - fix: the concrete action to take
-  - example: a rewritten line the candidate could paste in. Use ONLY facts from the resume; where a number is unknown, use a placeholder like [X%] or [N users]. Never invent employers, degrees, or results.
+  - example: a rewritten line the candidate could paste in. In every example, use ONLY facts present in the resume. Never add tools, tasks, or results the candidate did not state — not even in a Skills line. For anything missing, use a placeholder like [X%], [N users], or [tool you actually used]. If no honest rewrite is possible, only reword what is already there.
 - suggested_projects: 2-3 items. Each is one sentence describing a small project that would close a specific missing_keywords gap, naming the tools to use.
 
 # RULES
@@ -79,7 +80,7 @@ Output:
  "matched_keywords": ["Excel", "SQL", "stakeholder reporting"],
  "missing_keywords": ["Tableau", "Power BI", "Python"],
  "strengths": ["Built an Excel sales tracker with pivot tables that 3 store managers used weekly — direct proof of stakeholder reporting."],
- "improvements": [{"section": "Experience", "issue": "\\"Built a weekly sales tracker\\" does not say what decisions it drove.", "fix": "Add the outcome the tracker enabled and how often it was used.", "example": "Built a weekly Excel sales tracker (pivot tables, 5 KPIs) used by 3 store managers to adjust staffing, cutting overtime by [X%]."}],
+ "improvements": [{"section": "Experience", "issue": "\\"Built a weekly sales tracker\\" does not say what decisions it drove.", "fix": "Add the outcome the tracker enabled and how often it was used.", "example": "Built a weekly Excel sales tracker with pivot tables, used by 3 store managers to [decision it informed], saving [N hours] per week."}],
  "suggested_projects": ["Rebuild your BrightMart sales tracker as a Power BI dashboard over a public retail dataset, with a SQL query layer, to close the Power BI and SQL-experience gaps."]}`;
 
 // Gemini structured-output schema: forces valid JSON with exactly these fields.
