@@ -151,5 +151,26 @@ check('missing storage gives an empty history', h.parseHistory(null).length === 
 const mixed = JSON.stringify([entry, { id: 'x', score: '99', result: {} }, null, { id: 'y', score: 5 }]);
 check('malformed entries are dropped', h.parseHistory(mixed).length === 1, h.parseHistory(mixed));
 
+// No emoji in the UI or docs: icons are inline SVG. Pictographs, the old ✓ ✕ ⚠ glyphs and emoji
+// variation selectors all fail. TEST_PLAN.md (sample resumes) and this file's test data are not scanned.
+const PICTOGRAPH = /[\p{Extended_Pictographic}✓✔✕✖✗✘⚠︎️]/u;
+for (const file of ['index.html', 'README.md', 'SUBMISSION.md', 'PROMPT_LOG.md']) {
+  const hits = readFileSync(new URL(`../${file}`, import.meta.url), 'utf8').split('\n')
+    .map((line, n) => ({ line: n + 1, char: line.match(PICTOGRAPH)?.[0] }))
+    .filter((h) => h.char)
+    .map((h) => `line ${h.line}: U+${h.char.codePointAt(0).toString(16).toUpperCase()}`);
+  check(`no emoji or pictograph characters in ${file}`, hits.length === 0, hits.slice(0, 5));
+}
+check('the emoji check itself catches emoji, ✓ and variation selectors',
+  ['🚀', '✓', '⚠', 'x️', '🕘'].every((s) => PICTOGRAPH.test(s)) && !PICTOGRAPH.test('Plain text → — … •'));
+
+// Every icon the page uses must exist in the sprite.
+const symbols = new Set([...html.matchAll(/<symbol id="i-([a-z-]+)"/g)].map((m) => m[1]));
+const used = new Set([...html.matchAll(/href="#i-([a-z-]+)"|icon\('([a-z-]+)'|listItems\([^,]+, '([a-z-]+)'/g)]
+  .map((m) => m[1] || m[2] || m[3]));
+Object.values(html.match(/STATUS_ICONS = (\{[^}]*\})/)?.[1].match(/'([a-z-]+)'(?=\s*[,}])/g) || []).forEach((n) => used.add(n.slice(1, -1)));
+const missing = [...used].filter((n) => !symbols.has(n));
+check('every icon used in index.html is defined in the sprite', used.size > 15 && missing.length === 0, { missing, used: [...used] });
+
 console.log(failures ? `\n${failures} check(s) failed` : '\nAll checks passed');
 process.exit(failures ? 1 : 0);

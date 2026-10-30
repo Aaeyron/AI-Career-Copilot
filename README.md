@@ -23,7 +23,7 @@ The API key exists only as a server environment variable. It is never sent to th
 
 ## Bonus features
 
-**PDF upload.** Click **📎 Upload PDF** next to the resume box. The text is extracted in the browser with [pdf.js](https://mozilla.github.io/pdf.js/) 4.10.38 (loaded from cdnjs on the first upload), then placed in the textarea so you can review and edit it before analyzing. The PDF file is never uploaded anywhere.
+**PDF upload.** Click **Upload PDF** next to the resume box. The text is extracted in the browser with [pdf.js](https://mozilla.github.io/pdf.js/) 4.10.38 (loaded from cdnjs on the first upload), then placed in the textarea so you can review and edit it before analyzing. The PDF file is never uploaded anywhere.
 
 - Accepts `.pdf` up to 5 MB, and checks the `%PDF-` header, so a renamed image or `.docx` is rejected.
 - Friendly errors for: not a PDF, over 5 MB, password-protected, damaged, and scanned/image-only PDFs ("This looks like a scanned PDF; paste the text instead").
@@ -55,7 +55,7 @@ To debug a failure, open Vercel → your project → **Logs**, and search for `[
 The system prompt in `api/analyze.js` has these parts:
 
 - **ROLE**: a senior technical recruiter and ATS specialist who doesn't inflate scores.
-- **TASK**: a 4-step procedure: extract the requirements, check each one against the resume (including variants like ML ↔ machine learning), score, then write feedback.
+- **TASK**: a 4-step procedure: extract the requirements, check each one against the resume (including variants like "ML" and "machine learning"), score, then write feedback.
 - **SCORING**: a weighted rubric (keywords 40, experience 25, impact 15, education 10, readability 10) with calibration bands, so scores are realistic.
 - **FORMAT**: rules for each field, enforced by a Gemini `responseSchema`.
 - **RULES**: anti-generic, no invented facts, no keyword in both lists, resume/JD treated as untrusted data (prompt-injection defense).

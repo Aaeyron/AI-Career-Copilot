@@ -198,7 +198,27 @@ textarea::placeholder { color: #94a3b8; }
 .upload-btn:hover { border-color: var(--accent); }
 .upload-btn:disabled { opacity: 0.6; cursor: not-allowed; }
 
-/* Status message under the resume box. The icon is drawn by ::before so JS only sets text and a class. */
+/* Icons: inline SVG from the sprite at the top of <body>, outline style, coloured by currentColor.
+   Sizes: 16px in buttons and inline text, 18px in result headings, 20px in card headings and alerts. */
+.i {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vertical-align: -3px;
+}
+.i-18 { width: 18px; height: 18px; vertical-align: -4px; }
+.i-20 { width: 20px; height: 20px; vertical-align: -5px; }
+.i-spin { animation: spin 0.8s linear infinite; }
+.input-card:nth-child(1) h3 .icon { color: #b45309; }
+.input-card:nth-child(2) h3 .icon { color: #1d4ed8; }
+.tips-box strong .i { margin-right: 4px; }
+
+/* Status message under the resume box. JS sets the class, a fixed icon and the text (via textContent). */
 .pdf-status {
   display: flex;
   align-items: flex-start;
@@ -215,26 +235,13 @@ textarea::placeholder { color: #94a3b8; }
   overflow-wrap: anywhere;
 }
 .pdf-status:empty { display: none; }
-.pdf-status::before {
-  content: '…';
-  flex: none;
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  background: var(--border);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 11px;
-  font-weight: 700;
-  line-height: 1;
-}
+.pdf-status .i { color: var(--muted); }
 .pdf-status.ok { background: #f0fdf4; border-color: #bbf7d0; color: #166534; }
-.pdf-status.ok::before { content: '✓'; background: #dcfce7; color: var(--success); }
+.pdf-status.ok .i { color: var(--success); }
 .pdf-status.warn { background: #fffbeb; border-color: #fde68a; color: #92400e; font-weight: 600; }
-.pdf-status.warn::before { content: '!'; background: #fef3c7; color: #b45309; }
+.pdf-status.warn .i { color: #b45309; }
 .pdf-status.error { background: #fef2f2; border-color: #fecaca; color: #991b1b; font-weight: 600; }
-.pdf-status.error::before { content: '✕'; background: #fee2e2; color: var(--danger); }
+.pdf-status.error .i { color: var(--danger); }
 
 /* Analyze Button */
 .analyze-btn {
@@ -302,6 +309,8 @@ textarea::placeholder { color: #94a3b8; }
   align-items: center;
   gap: 12px;
 }
+/* Keep the icon level with the title line when the message wraps. */
+.error-box .i { align-self: flex-start; margin-top: 3px; color: var(--danger); }
 
 /* Results */
 .results { margin-top: 30px; }
@@ -329,11 +338,13 @@ textarea::placeholder { color: #94a3b8; }
   font-weight: 700;
   margin-bottom: 14px;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 8px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
+/* Icons line up with the first line, so a heading that wraps on a phone keeps its icon at the top. */
+.result-card h4 .i { margin-top: 2px; }
 .card-note {
   font-size: 13px;
   color: var(--muted);
@@ -398,7 +409,13 @@ textarea::placeholder { color: #94a3b8; }
   font-size: 13px;
   font-weight: 700;
   margin-bottom: 10px;
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
 }
+.keyword-grid h5 .i { margin-top: 2px; }
+.keyword-grid h5 .i-found { color: var(--success); }
+.keyword-grid h5 .i-missing { color: #b45309; }
 .keyword-list {
   display: flex;
   flex-wrap: wrap;
@@ -435,8 +452,7 @@ textarea::placeholder { color: #94a3b8; }
   line-height: 1.5;
 }
 .insight-list li:last-child { border-bottom: none; }
-.insight-list li::before {
-  content: '✓';
+.insight-list .li-icon {
   position: absolute;
   left: 0;
   top: 10px;
@@ -448,11 +464,9 @@ textarea::placeholder { color: #94a3b8; }
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 11px;
-  font-weight: 700;
 }
-.project-list li::before {
-  content: '→';
+.insight-list .li-icon .i { width: 12px; height: 12px; stroke-width: 2.5; }
+.project-list .li-icon {
   background: #dbeafe;
   color: #1d4ed8;
 }
@@ -594,6 +608,7 @@ footer a:hover { text-decoration: underline; }
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  gap: 6px;
   min-height: 36px;
   padding: 0 12px;
   background: none;
@@ -606,6 +621,7 @@ footer a:hover { text-decoration: underline; }
   cursor: pointer;
 }
 .link-btn:hover { color: var(--danger); background: #fef2f2; }
+.link-btn[hidden] { display: none; } /* display: inline-flex above would otherwise override the hidden attribute */
 
 /* Touch screens (tablet and phone): 44px tap targets. */
 @media (max-width: 768px) {
@@ -622,6 +638,32 @@ footer a:hover { text-decoration: underline; }
 </head>
 <body>
 
+<!-- Icon sprite: outline icons (24x24, Lucide-style), defined once and reused with <use> (href is "#" + the symbol id).
+     Styling (stroke, size, colour) comes from the .i class, so every icon follows currentColor. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="0" height="0" style="position: absolute;" aria-hidden="true" focusable="false">
+  <symbol id="i-file-text" viewBox="0 0 24 24"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></symbol>
+  <symbol id="i-briefcase" viewBox="0 0 24 24"><path d="M16 20V4a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/><rect width="20" height="14" x="2" y="6" rx="2"/></symbol>
+  <symbol id="i-upload" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m17 8-5-5-5 5"/><path d="M12 3v12"/></symbol>
+  <symbol id="i-sparkles" viewBox="0 0 24 24"><path d="M9.94 15.5A2 2 0 0 0 8.5 14.06l-6.14-1.58a.5.5 0 0 1 0-.96L8.5 9.94A2 2 0 0 0 9.94 8.5l1.58-6.14a.5.5 0 0 1 .96 0l1.58 6.14a2 2 0 0 0 1.44 1.44l6.14 1.58a.5.5 0 0 1 0 .96l-6.14 1.58a2 2 0 0 0-1.44 1.44l-1.58 6.14a.5.5 0 0 1-.96 0z"/><path d="M20 3v4"/><path d="M22 5h-4"/><path d="M4 17v2"/><path d="M5 18H3"/></symbol>
+  <symbol id="i-lightbulb" viewBox="0 0 24 24"><path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"/><path d="M9 18h6"/><path d="M10 22h4"/></symbol>
+  <symbol id="i-target" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></symbol>
+  <symbol id="i-align-left" viewBox="0 0 24 24"><path d="M21 6H3"/><path d="M15 12H3"/><path d="M17 18H3"/></symbol>
+  <symbol id="i-key" viewBox="0 0 24 24"><path d="m15.5 7.5 2.3 2.3a1 1 0 0 0 1.4 0l2.1-2.1a1 1 0 0 0 0-1.4L19 4"/><path d="m21 2-9.6 9.6"/><circle cx="7.5" cy="15.5" r="5.5"/></symbol>
+  <symbol id="i-check-circle" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></symbol>
+  <symbol id="i-plus-circle" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M8 12h8"/><path d="M12 8v8"/></symbol>
+  <symbol id="i-wrench" viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></symbol>
+  <symbol id="i-hammer" viewBox="0 0 24 24"><path d="m15 12-8.37 8.37a1 1 0 1 1-3-3L12 9"/><path d="m18 15 4-4"/><path d="m21.5 11.5-1.91-1.91A2 2 0 0 1 19 8.17V7l-2.26-2.26a6 6 0 0 0-4.2-1.76L9 2.96l.92.82A6.18 6.18 0 0 1 12 8.4V10l2 2h1.17a2 2 0 0 1 1.41.59L18.5 14.5"/></symbol>
+  <symbol id="i-flag" viewBox="0 0 24 24"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><path d="M4 22v-7"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></symbol>
+  <symbol id="i-trash" viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><path d="M10 11v6"/><path d="M14 11v6"/></symbol>
+  <symbol id="i-alert-triangle" viewBox="0 0 24 24"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></symbol>
+  <symbol id="i-x-circle" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></symbol>
+  <symbol id="i-alert-circle" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 8v4"/><path d="M12 16h.01"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+  <symbol id="i-arrow-right" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></symbol>
+  <symbol id="i-loader" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-6.22-8.56"/></symbol>
+</svg>
+
 <header>
   <h1>AI Career <span>Copilot</span></h1>
   <p>Paste your resume and a job description. Get an ATS match score, keyword gaps, and concrete fixes.</p>
@@ -635,8 +677,8 @@ footer a:hover { text-decoration: underline; }
     <!-- Both cards share the same four rows (header, textarea, footer, status) so their parts line up. -->
     <div class="input-card">
       <div class="card-head">
-        <h3><span class="icon">📄</span> Your Resume</h3>
-        <button id="pdfBtn" class="upload-btn" type="button">📎 Upload PDF</button>
+        <h3><span class="icon"><svg class="i i-20" aria-hidden="true" focusable="false"><use href="#i-file-text"/></svg></span> Your Resume</h3>
+        <button id="pdfBtn" class="upload-btn" type="button"><svg class="i" aria-hidden="true" focusable="false"><use href="#i-upload"/></svg> Upload PDF</button>
         <input id="pdfInput" type="file" accept=".pdf,application/pdf" hidden>
       </div>
       <textarea id="resume" maxlength="15000" placeholder="Paste your full resume text here...&#10;&#10;Include:&#10;- Work experience&#10;- Skills&#10;- Education&#10;- Projects"></textarea>
@@ -648,7 +690,7 @@ footer a:hover { text-decoration: underline; }
     </div>
     <div class="input-card">
       <div class="card-head">
-        <h3><span class="icon">💼</span> Job Description</h3>
+        <h3><span class="icon"><svg class="i i-20" aria-hidden="true" focusable="false"><use href="#i-briefcase"/></svg></span> Job Description</h3>
       </div>
       <textarea id="jobDesc" maxlength="10000" placeholder="Paste the job description here...&#10;&#10;Include:&#10;- Job title&#10;- Required skills&#10;- Responsibilities&#10;- Qualifications"></textarea>
       <div class="card-foot">
@@ -658,11 +700,11 @@ footer a:hover { text-decoration: underline; }
   </div>
 
   <button id="analyzeBtn" class="analyze-btn" type="button">
-    <span>🚀</span> Analyze Resume
+    <svg class="i i-18" aria-hidden="true" focusable="false"><use href="#i-sparkles"/></svg> Analyze Resume
   </button>
 
   <div class="tips-box">
-    <strong>💡 Pro Tip:</strong> Paste the <em>full</em> resume text and the <em>complete</em> job description for the most accurate match.
+    <strong><svg class="i" aria-hidden="true" focusable="false"><use href="#i-lightbulb"/></svg>Pro Tip:</strong> Paste the <em>full</em> resume text and the <em>complete</em> job description for the most accurate match.
     Your text is sent to Google Gemini for analysis and is not stored on our server. Remove your phone number and address first if you prefer.
   </div>
 
@@ -672,8 +714,8 @@ footer a:hover { text-decoration: underline; }
   <!-- History Section -->
   <section class="result-card" aria-labelledby="historyTitle">
     <div class="history-head">
-      <h4 id="historyTitle">🕘 History</h4>
-      <button id="clearHistoryBtn" class="link-btn" type="button" hidden>Clear all</button>
+      <h4 id="historyTitle"><svg class="i i-18" aria-hidden="true" focusable="false"><use href="#i-clock"/></svg> History</h4>
+      <button id="clearHistoryBtn" class="link-btn" type="button" hidden><svg class="i" aria-hidden="true" focusable="false"><use href="#i-trash"/></svg> Clear all</button>
     </div>
     <p class="card-note">History is saved only in this browser. It keeps your last 10 results (not your resume text), and opening one does not call the AI.</p>
     <ul id="historyList" class="history-list"></ul>
@@ -797,8 +839,9 @@ function pageLines(items) {
   });
 }
 
-//  and  are the Symbol-font bullets that Word exports.
-const BULLET_RE = /^(?:[•●▪■◦‣∙○·]|[-–—*](?=\s))\s*/;
+// \uf0b7 and \uf0a7 are the Symbol-font bullets that Word exports. \u25aa (small square) is a pictograph,
+// so it is escaped too: index.html must contain no literal emoji (see tests/ui-logic.test.mjs).
+const BULLET_RE = /^(?:[•●\u25aa■◦‣∙○·\uf0b7\uf0a7]|[-–—*](?=\s))\s*/;
 const NUMBERED_RE = /^\d{1,2}[.)]\s/;
 const SECTION_RE = /^(?:(?:professional|work|technical|key|relevant|academic)\s+)?(?:summary|profile|objective|education|skills|projects|experience|employment|certifications?|achievements|awards|publications|languages|interests|hobbies|contact|volunteering|courses|training)(?:\s+(?:&|and)\s+\w+)?:?$/i;
 const CONNECTOR_RE = /(?:,|\b(?:and|or|of|to|with|for|in|the|a|an|by|on|at|from|using|via|as|&))$/i;
@@ -950,10 +993,16 @@ function esc(value) {
     .replace(/'/g, '&#39;');
 }
 
+// Decorative icon from the sprite. `name` and `cls` are always fixed strings from this file,
+// never user, PDF or AI text, so they are not escaped.
+function icon(name, cls = '') {
+  return `<svg class="i ${cls}" aria-hidden="true" focusable="false"><use href="#i-${name}"/></svg>`;
+}
+
 function showError(title, message) {
   resultsDiv.innerHTML = `
     <div class="error-box" role="alert">
-      <span style="font-size: 20px;">⚠️</span>
+      ${icon('alert-circle', 'i-20')}
       <div>
         <strong>${esc(title)}</strong><br>
         <span style="font-size: 13px;">${esc(message)}</span>
@@ -965,7 +1014,7 @@ function setLoading(isLoading) {
   analyzeBtn.disabled = isLoading;
   analyzeBtn.innerHTML = isLoading
     ? '<span class="btn-spinner"></span> AI is analyzing...'
-    : '<span>🚀</span> Analyze Resume';
+    : `${icon('sparkles', 'i-18')} Analyze Resume`;
 }
 
 async function analyzeResume() {
@@ -1048,10 +1097,15 @@ function displayResults(a, savedAt) {
       ${i.example ? `<div class="example"><span class="label">Example:</span> ${esc(i.example)}</div>` : ''}
     </div>`).join('');
 
+  // List item with a fixed marker icon; the text is always escaped.
+  const listItems = (list, marker, emptyText) =>
+    (list?.length ? list : [emptyText]).map((text) =>
+      `<li><span class="li-icon" aria-hidden="true">${icon(marker)}</span>${esc(text)}</li>`).join('');
+
   resultsDiv.innerHTML = `
-    ${savedAt ? `<div class="tips-box" style="margin-top: 0;"><strong>🕘 Saved result</strong> from ${esc(formatDate(savedAt))}, loaded from this browser's history. The AI was not called again.</div>` : ''}
+    ${savedAt ? `<div class="tips-box" style="margin-top: 0;"><strong>${icon('clock')}Saved result</strong> from ${esc(formatDate(savedAt))}, loaded from this browser's history. The AI was not called again.</div>` : ''}
     <div class="result-card score-card">
-      <h4 style="justify-content: center;">🎯 ATS Match Score</h4>
+      <h4 style="justify-content: center;">${icon('target', 'i-18')} ATS Match Score</h4>
       <div class="score-circle" style="--score-deg: ${scoreDeg}deg; --score-color: ${scoreColor};">
         <div class="score-number" style="color: ${scoreColor};">${score}</div>
         <div class="score-label">out of 100</div>
@@ -1060,45 +1114,45 @@ function displayResults(a, savedAt) {
     </div>
 
     <div class="result-card">
-      <h4>📝 AI Summary</h4>
+      <h4>${icon('align-left', 'i-18')} AI Summary</h4>
       <p style="font-size: 15px; line-height: 1.6;">${esc(a.summary || 'No summary provided.')}</p>
     </div>
 
     <div class="result-card">
-      <h4>🔑 Keyword Match</h4>
+      <h4>${icon('key', 'i-18')} Keyword Match</h4>
       <div class="keyword-grid">
         <div>
-          <h5>✅ Found in your resume</h5>
+          <h5>${icon('check-circle', 'i-found')} Found in your resume</h5>
           <div class="keyword-list">${chips(a.matched_keywords, 'matched')}</div>
         </div>
         <div>
-          <h5>➕ Missing (add if you genuinely have them)</h5>
+          <h5>${icon('plus-circle', 'i-missing')} Missing (add if you genuinely have them)</h5>
           <div class="keyword-list">${chips(a.missing_keywords, '')}</div>
         </div>
       </div>
     </div>
 
     <div class="result-card">
-      <h4>💪 What Your Resume Does Well</h4>
+      <h4>${icon('check-circle', 'i-18')} What Your Resume Does Well</h4>
       <ul class="insight-list">
-        ${(a.strengths || []).map((s) => `<li>${esc(s)}</li>`).join('') || '<li>No specific strengths identified.</li>'}
+        ${listItems(a.strengths, 'check', 'No specific strengths identified.')}
       </ul>
     </div>
 
     <div class="result-card">
-      <h4>🛠️ Recommended Improvements</h4>
+      <h4>${icon('wrench', 'i-18')} Recommended Improvements</h4>
       ${improvements || '<p class="empty-note">No improvements suggested.</p>'}
     </div>
 
     <div class="result-card">
-      <h4>🚀 Projects That Would Close Your Gaps</h4>
+      <h4>${icon('hammer', 'i-18')} Projects That Would Close Your Gaps</h4>
       <ul class="insight-list project-list">
-        ${(a.suggested_projects || []).map((p) => `<li>${esc(p)}</li>`).join('') || '<li>No projects suggested.</li>'}
+        ${listItems(a.suggested_projects, 'arrow-right', 'No projects suggested.')}
       </ul>
     </div>
 
     <div class="tips-box" style="background: #f0fdf4; border-color: #bbf7d0; color: #14532d;">
-      <strong>🎯 Next Steps:</strong> Apply the top improvement first, add missing keywords only where they are true for you, then run the analysis again.
+      <strong>${icon('flag')}Next Steps:</strong> Apply the top improvement first, add missing keywords only where they are true for you, then run the analysis again.
     </div>
     <p class="meta-line">Prompt ${esc(a.prompt_version)} · ${esc(a.model)}</p>
   `;
@@ -1165,10 +1219,20 @@ async function readPdf(file) {
   }
 }
 
+const STATUS_ICONS = { '': 'loader', ok: 'check-circle', warn: 'alert-triangle', error: 'x-circle' };
+
 // All PDF-derived text goes through textContent or a textarea value, never innerHTML.
+// Only the fixed icon markup is set with innerHTML; the message (which can contain the file name) is textContent.
 function setPdfStatus(message, kind = '') {
-  pdfStatus.textContent = message;
   pdfStatus.className = `pdf-status ${kind}`;
+  if (!message) {
+    pdfStatus.textContent = '';
+    return;
+  }
+  pdfStatus.innerHTML = icon(STATUS_ICONS[kind], kind ? 'i-20' : 'i-20 i-spin');
+  const text = document.createElement('span');
+  text.textContent = message;
+  pdfStatus.append(text);
 }
 
 async function onPdfChosen() {
@@ -1257,7 +1321,7 @@ function renderHistory() {
           <span class="history-date">${esc(formatDate(e.savedAt))} · prompt ${esc(e.prompt_version)} · ${esc(e.model)}</span>
         </span>
       </button>
-      <button class="link-btn" type="button" data-delete="${esc(e.id)}" aria-label="Delete ${esc(e.label)}">Delete</button>
+      <button class="link-btn" type="button" data-delete="${esc(e.id)}" aria-label="Delete ${esc(e.label)}">${icon('trash')} Delete</button>
     </li>`).join('');
 }
 
