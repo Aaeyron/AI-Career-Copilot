@@ -21,6 +21,21 @@ Function normalizes the JSON (types, ranges, keyword check) → browser renders 
 
 The API key exists only as a server environment variable. It is never sent to the browser and never committed.
 
+## Bonus features
+
+**PDF upload.** Click **📎 Upload PDF** next to the resume box. The text is extracted in the browser with [pdf.js](https://mozilla.github.io/pdf.js/) 4.10.38 (loaded from cdnjs on the first upload), then placed in the textarea so you can review and edit it before analyzing. The PDF file is never uploaded anywhere.
+
+- Accepts `.pdf` up to 5 MB, and checks the `%PDF-` header, so a renamed image or `.docx` is rejected.
+- Friendly errors for: not a PDF, over 5 MB, password-protected, damaged, and scanned/image-only PDFs ("This looks like a scanned PDF; paste the text instead").
+- Text over the 15,000-character resume limit is cut, with a visible warning.
+- PDF text only ever goes into a textarea or `textContent`, never `innerHTML`. pdf.js runs with `isEvalSupported: false`.
+
+**Saved history.** After each successful analysis, the result is saved in `localStorage`: date/time, score, prompt version, model, a short label (resume first line → job title), and the full result JSON. The last 10 are kept.
+
+- Click an entry to show that result again without calling the API (no quota used). Each entry has **Delete**, and there is **Clear all**.
+- History is saved only in this browser. The resume text itself is not stored.
+- All storage access is wrapped in `try/catch`. If storage is blocked, the app still works and the History section says history is unavailable.
+
 ## Model choice
 
 | Setting | Default | Why |
@@ -68,9 +83,18 @@ npm install -g vercel          # once
 vercel login                   # once
 cp .env.example .env.local     # then put your real key in .env.local
 npm run test:api               # offline test of the API function (no key needed)
+npm run test:ui                # offline test of the PDF and history helpers in index.html
 npm run test:e2e -- R1 JD-A    # one real Gemini call with samples from TEST_PLAN.md
 vercel dev                     # http://localhost:3000
 ```
+
+To try the PDF upload and history UI without the API, serve the folder and open the page:
+
+```bash
+python -m http.server 8000     # then open http://localhost:8000/index.html
+```
+
+PDF upload works fully there. **Analyze** needs `/api/analyze`, so use `vercel dev` for that. History entries saved under `vercel dev` (port 3000) belong to that origin, not to port 8000.
 
 ## Security
 
@@ -82,7 +106,7 @@ vercel dev                     # http://localhost:3000
 
 ## Privacy
 
-Resume text is sent to the Google Gemini API for analysis and is not stored by this app. On the free tier, Google may use inputs to improve its products, so remove your personal contact details before pasting.
+Resume text is sent to the Google Gemini API for analysis and is not stored on the server. Uploaded PDFs are read in the browser and never uploaded. Saved history stays in your browser's `localStorage` and holds only the results and a short label, not the resume text. On the free tier, Google may use inputs to improve its products, so remove your personal contact details before pasting.
 
 ## Tech
 

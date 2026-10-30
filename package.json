@@ -7,6 +7,7 @@
   "scripts": {
     "dev": "vercel dev",
     "test:api": "node tests/smoke-test.mjs",
+    "test:ui": "node tests/ui-logic.test.mjs",
     "test:e2e": "node tests/e2e.mjs"
   }
 }

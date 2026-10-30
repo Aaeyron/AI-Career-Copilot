@@ -154,6 +154,35 @@ textarea::placeholder { color: #94a3b8; }
 }
 .char-count.over { color: var(--danger); font-weight: 600; }
 
+/* PDF upload */
+.upload-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.upload-btn {
+  background: white;
+  color: var(--primary);
+  border: 2px solid var(--border);
+  border-radius: 8px;
+  padding: 6px 14px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+.upload-btn:hover { border-color: var(--accent); }
+.upload-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+.upload-hint { font-size: 12px; color: var(--muted); }
+.pdf-status { font-size: 13px; margin-bottom: 10px; overflow-wrap: anywhere; }
+.pdf-status:empty { display: none; }
+.pdf-status.ok { color: var(--success); }
+.pdf-status.warn { color: #b45309; font-weight: 600; }
+.pdf-status.error { color: var(--danger); font-weight: 600; }
+
 /* Analyze Button */
 .analyze-btn {
   width: 100%;
@@ -443,6 +472,72 @@ footer a:hover { text-decoration: underline; }
   color: #0c4a6e;
 }
 .tips-box strong { color: #075985; }
+
+/* History */
+.history-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 4px;
+}
+.history-head h4 { margin-bottom: 0; }
+.history-list { list-style: none; }
+.history-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+  border-bottom: 1px solid #f1f5f9;
+}
+.history-item:last-child { border-bottom: none; }
+.history-open {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: none;
+  border: none;
+  border-radius: 8px;
+  padding: 6px;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.history-open:hover { background: var(--bg); }
+.history-score {
+  min-width: 46px;
+  text-align: center;
+  font-size: 16px;
+  font-weight: 800;
+  background: #f1f5f9;
+  border-radius: 8px;
+  padding: 4px 8px;
+}
+.history-text { min-width: 0; }
+.history-label {
+  display: block;
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.history-date { display: block; font-size: 12px; color: var(--muted); }
+.link-btn {
+  background: none;
+  border: none;
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+  cursor: pointer;
+}
+.link-btn:hover { color: var(--danger); background: #fef2f2; }
 </style>
 </head>
 <body>
@@ -459,6 +554,12 @@ footer a:hover { text-decoration: underline; }
   <div class="input-grid">
     <div class="input-card">
       <h3><span class="icon">📄</span> Your Resume</h3>
+      <div class="upload-row">
+        <button id="pdfBtn" class="upload-btn" type="button">📎 Upload PDF</button>
+        <input id="pdfInput" type="file" accept=".pdf,application/pdf" hidden>
+        <span class="upload-hint">Text-based PDF, max 5 MB. Read in your browser; the file is never uploaded.</span>
+      </div>
+      <div class="pdf-status" id="pdfStatus" role="status" aria-live="polite"></div>
       <textarea id="resume" maxlength="15000" placeholder="Paste your full resume text here...&#10;&#10;Include:&#10;- Work experience&#10;- Skills&#10;- Education&#10;- Projects"></textarea>
       <div class="char-count" id="resumeCount">0 / 15,000</div>
     </div>
@@ -475,11 +576,21 @@ footer a:hover { text-decoration: underline; }
 
   <div class="tips-box">
     <strong>💡 Pro Tip:</strong> Paste the <em>full</em> resume text and the <em>complete</em> job description for the most accurate match.
-    Your text is sent to Google Gemini for analysis and is not stored by this app. Remove your phone number and address first if you prefer.
+    Your text is sent to Google Gemini for analysis and is not stored on our server. Remove your phone number and address first if you prefer.
   </div>
 
   <!-- Results Section -->
   <div id="results" class="results" aria-live="polite"></div>
+
+  <!-- History Section -->
+  <section class="result-card" aria-labelledby="historyTitle">
+    <div class="history-head">
+      <h4 id="historyTitle">🕘 History</h4>
+      <button id="clearHistoryBtn" class="link-btn" type="button" hidden>Clear all</button>
+    </div>
+    <p class="card-note">History is saved only in this browser. It keeps your last 10 results (not your resume text), and opening one does not call the AI.</p>
+    <ul id="historyList" class="history-list"></ul>
+  </section>
 
 </div>
 
@@ -495,14 +606,94 @@ footer a:hover { text-decoration: underline; }
 const LIMITS = { min: 50, resumeMax: 15000, jobMax: 10000 };
 const REQUEST_TIMEOUT_MS = 90000;
 
+/* <testable> Pure helpers with no DOM access. tests/ui-logic.test.mjs loads this block in Node. */
+const PDF_MAX_BYTES = 5 * 1024 * 1024;
+const HISTORY_MAX = 10;
+const HISTORY_KEY = 'careerCopilot.history.v1';
+
+function isPdfName(file) {
+  return /\.pdf$/i.test(file.name || '') || file.type === 'application/pdf';
+}
+
+// Real PDFs start with "%PDF-" (the spec allows a little junk before it), so a renamed .docx or .png fails here.
+function looksLikePdf(bytes) {
+  return String.fromCharCode(...bytes.subarray(0, 1024)).includes('%PDF-');
+}
+
+// pdf.js returns a page's text in pieces; hasEOL marks the end of a line.
+function pageText(items) {
+  return items.map((item) => (item.str || '') + (item.hasEOL ? '\n' : '')).join('');
+}
+
+function cleanPdfText(pages) {
+  return pages.join('\n\n')
+    .replace(/[ \t ]+/g, ' ')
+    .replace(/ *\n */g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+function fitToLimit(text, max) {
+  return text.length > max ? { text: text.slice(0, max), truncated: true } : { text, truncated: false };
+}
+
+function firstLine(text, max) {
+  const line = String(text || '').split('\n').map((l) => l.trim()).find(Boolean) || '';
+  return line.length > max ? line.slice(0, max - 1) + '…' : line;
+}
+
+// For privacy, only the AI result and a short label are kept, never the resume text itself.
+function makeHistoryEntry(result, resume, jobDescription, now = new Date()) {
+  const label = [firstLine(resume, 40), firstLine(jobDescription, 50)].filter(Boolean).join(' → ');
+  return {
+    id: now.getTime().toString(36) + Math.random().toString(36).slice(2, 6),
+    savedAt: now.toISOString(),
+    score: result.ats_score,
+    prompt_version: result.prompt_version || '',
+    model: result.model || '',
+    label: label || 'Untitled analysis',
+    result,
+  };
+}
+
+function addToHistory(list, entry) {
+  return [entry, ...list].slice(0, HISTORY_MAX);
+}
+
+// Storage can be edited by hand, so keep only well-formed entries (they are still escaped when shown).
+function parseHistory(raw) {
+  try {
+    const list = JSON.parse(raw || '[]');
+    if (!Array.isArray(list)) return [];
+    return list.filter((e) => e && typeof e.id === 'string' && typeof e.score === 'number' &&
+      e.result && typeof e.result === 'object' && typeof e.result.ats_score === 'number').slice(0, HISTORY_MAX);
+  } catch {
+    return [];
+  }
+}
+/* </testable> */
+
 const resumeEl = document.getElementById('resume');
 const jobEl = document.getElementById('jobDesc');
 const resultsDiv = document.getElementById('results');
 const analyzeBtn = document.getElementById('analyzeBtn');
+const pdfBtn = document.getElementById('pdfBtn');
+const pdfInput = document.getElementById('pdfInput');
+const pdfStatus = document.getElementById('pdfStatus');
+const historyList = document.getElementById('historyList');
+const clearHistoryBtn = document.getElementById('clearHistoryBtn');
 
 analyzeBtn.addEventListener('click', analyzeResume);
 resumeEl.addEventListener('input', () => updateCount(resumeEl, 'resumeCount', LIMITS.resumeMax));
 jobEl.addEventListener('input', () => updateCount(jobEl, 'jobCount', LIMITS.jobMax));
+pdfBtn.addEventListener('click', () => pdfInput.click());
+pdfInput.addEventListener('change', onPdfChosen);
+historyList.addEventListener('click', onHistoryClick);
+clearHistoryBtn.addEventListener('click', () => {
+  if (!confirm('Delete all saved analyses from this browser?')) return;
+  saveHistory([]);
+  renderHistory();
+});
 
 function updateCount(el, id, max) {
   const counter = document.getElementById(id);
@@ -580,6 +771,8 @@ async function analyzeResume() {
     }
 
     displayResults(data);
+    saveHistory(addToHistory(loadHistory(), makeHistoryEntry(data, resume, jobDescription)));
+    renderHistory();
   } catch (error) {
     const message = error.name === 'AbortError'
       ? 'The request took too long. Please try again.'
@@ -596,15 +789,18 @@ function chips(list, cls) {
   return list.map((k) => `<span class="keyword ${cls}">${esc(k)}</span>`).join('');
 }
 
-function displayResults(a) {
+function scoreBand(score) {
+  if (score >= 80) return { color: 'var(--success)', message: 'Excellent match! Your resume is well-optimized.' };
+  if (score >= 60) return { color: 'var(--warning)', message: 'Good match — some improvements can help.' };
+  if (score >= 40) return { color: 'var(--accent)', message: 'Fair match — consider significant updates.' };
+  return { color: 'var(--danger)', message: 'Low match — major revisions needed' };
+}
+
+// savedAt is set when the result comes from history instead of a fresh API call.
+function displayResults(a, savedAt) {
   const score = Math.min(100, Math.max(0, Math.round(a.ats_score)));
   const scoreDeg = (score / 100) * 360;
-
-  let scoreColor = 'var(--danger)';
-  let scoreMessage = 'Low match — major revisions needed';
-  if (score >= 80) { scoreColor = 'var(--success)'; scoreMessage = 'Excellent match! Your resume is well-optimized.'; }
-  else if (score >= 60) { scoreColor = 'var(--warning)'; scoreMessage = 'Good match — some improvements can help.'; }
-  else if (score >= 40) { scoreColor = 'var(--accent)'; scoreMessage = 'Fair match — consider significant updates.'; }
+  const { color: scoreColor, message: scoreMessage } = scoreBand(score);
 
   const improvements = (a.improvements || []).map((i) => `
     <div class="improvement">
@@ -615,6 +811,7 @@ function displayResults(a) {
     </div>`).join('');
 
   resultsDiv.innerHTML = `
+    ${savedAt ? `<div class="tips-box" style="margin-top: 0;"><strong>🕘 Saved result</strong> from ${esc(formatDate(savedAt))}, loaded from this browser's history. The AI was not called again.</div>` : ''}
     <div class="result-card score-card">
       <h4 style="justify-content: center;">🎯 ATS Match Score</h4>
       <div class="score-circle" style="--score-deg: ${scoreDeg}deg; --score-color: ${scoreColor};">
@@ -670,6 +867,178 @@ function displayResults(a) {
 
   resultsDiv.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
+
+/* ---------- PDF upload: text is extracted in the browser with pdf.js ---------- */
+
+const PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38';
+let pdfjsPromise = null;
+
+// Loaded on the first upload only, so the page stays light for people who paste.
+function loadPdfJs() {
+  if (!pdfjsPromise) {
+    pdfjsPromise = import(`${PDFJS_BASE}/pdf.min.mjs`).then((lib) => {
+      lib.GlobalWorkerOptions.workerSrc = `${PDFJS_BASE}/pdf.worker.min.mjs`;
+      return lib;
+    });
+    pdfjsPromise.catch(() => { pdfjsPromise = null; }); // allow a retry after a network error
+  }
+  return pdfjsPromise;
+}
+
+// Errors whose message is safe and helpful to show as-is.
+class FriendlyError extends Error {}
+
+async function readPdf(file) {
+  if (!isPdfName(file)) throw new FriendlyError('Please choose a PDF file (.pdf).');
+  if (file.size > PDF_MAX_BYTES) {
+    throw new FriendlyError(`This file is ${(file.size / 1048576).toFixed(1)} MB. The limit is 5 MB, so export a smaller PDF or paste the text instead.`);
+  }
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  if (!looksLikePdf(bytes)) {
+    throw new FriendlyError("This file isn't a real PDF (it may have been renamed). Save your resume as a PDF again, or paste the text instead.");
+  }
+
+  let pdfjs;
+  try {
+    pdfjs = await loadPdfJs();
+  } catch {
+    throw new FriendlyError("Couldn't load the PDF reader. Check your internet connection, or paste the text instead.");
+  }
+
+  let doc;
+  try {
+    doc = await pdfjs.getDocument({ data: bytes, isEvalSupported: false }).promise;
+  } catch (err) {
+    if (err?.name === 'PasswordException') {
+      throw new FriendlyError('This PDF is password-protected. Remove the password, or paste the text instead.');
+    }
+    throw new FriendlyError("This PDF couldn't be read (it may be damaged). Try exporting it again, or paste the text instead.");
+  }
+
+  try {
+    const pages = [];
+    for (let n = 1; n <= doc.numPages; n++) {
+      const page = await doc.getPage(n);
+      pages.push(pageText((await page.getTextContent()).items));
+    }
+    return { text: cleanPdfText(pages), pageCount: doc.numPages };
+  } finally {
+    doc.destroy();
+  }
+}
+
+// All PDF-derived text goes through textContent or a textarea value, never innerHTML.
+function setPdfStatus(message, kind = '') {
+  pdfStatus.textContent = message;
+  pdfStatus.className = `pdf-status ${kind}`;
+}
+
+async function onPdfChosen() {
+  const file = pdfInput.files[0];
+  pdfInput.value = ''; // so choosing the same file again still fires "change"
+  if (!file) return;
+
+  pdfBtn.disabled = true;
+  setPdfStatus(`Reading ${file.name}...`);
+  try {
+    const { text, pageCount } = await readPdf(file);
+    // Scanned resumes are images, so pdf.js finds little or no text in them.
+    if (text.replace(/\s/g, '').length < LIMITS.min) {
+      throw new FriendlyError('This looks like a scanned PDF; paste the text instead.');
+    }
+    if (resumeEl.value.trim() && !confirm('Replace the resume text that is already in the box?')) {
+      setPdfStatus('');
+      return;
+    }
+
+    const fitted = fitToLimit(text, LIMITS.resumeMax);
+    resumeEl.value = fitted.text;
+    resumeEl.scrollTop = 0;
+    updateCount(resumeEl, 'resumeCount', LIMITS.resumeMax);
+    if (fitted.truncated) {
+      setPdfStatus(`${file.name} has ${text.length.toLocaleString()} characters, so only the first ${LIMITS.resumeMax.toLocaleString()} were kept. Check that nothing important was cut off.`, 'warn');
+    } else {
+      setPdfStatus(`Loaded ${pageCount} page${pageCount === 1 ? '' : 's'} from ${file.name}. Review and edit the text before analyzing.`, 'ok');
+    }
+  } catch (err) {
+    if (!(err instanceof FriendlyError)) console.error('[pdf]', err);
+    setPdfStatus(err instanceof FriendlyError ? err.message : 'Something went wrong reading this PDF. Paste the text instead.', 'error');
+  } finally {
+    pdfBtn.disabled = false;
+  }
+}
+
+/* ---------- History: saved in localStorage, in this browser only ---------- */
+
+// localStorage throws when it is blocked (private mode, strict settings), so every access is wrapped.
+let storageAvailable = true;
+
+function loadHistory() {
+  try {
+    const list = parseHistory(localStorage.getItem(HISTORY_KEY));
+    storageAvailable = true;
+    return list;
+  } catch {
+    storageAvailable = false;
+    return [];
+  }
+}
+
+function saveHistory(list) {
+  try {
+    localStorage.setItem(HISTORY_KEY, JSON.stringify(list));
+    return true;
+  } catch {
+    storageAvailable = false;
+    return false;
+  }
+}
+
+function formatDate(iso) {
+  const date = new Date(iso);
+  return isNaN(date) ? '' : date.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+}
+
+function renderHistory() {
+  const list = loadHistory();
+  clearHistoryBtn.hidden = !list.length;
+  if (!storageAvailable) {
+    historyList.innerHTML = '<li class="empty-note">History is unavailable because this browser is blocking storage. Everything else still works.</li>';
+    return;
+  }
+  if (!list.length) {
+    historyList.innerHTML = '<li class="empty-note">No saved analyses yet. Results appear here after each analysis.</li>';
+    return;
+  }
+  historyList.innerHTML = list.map((e) => `
+    <li class="history-item">
+      <button class="history-open" type="button" data-open="${esc(e.id)}" title="Show this saved result">
+        <span class="history-score" style="color: ${scoreBand(e.score).color};">${esc(Math.round(e.score))}</span>
+        <span class="history-text">
+          <span class="history-label">${esc(e.label)}</span>
+          <span class="history-date">${esc(formatDate(e.savedAt))} · prompt ${esc(e.prompt_version)} · ${esc(e.model)}</span>
+        </span>
+      </button>
+      <button class="link-btn" type="button" data-delete="${esc(e.id)}" aria-label="Delete ${esc(e.label)}">Delete</button>
+    </li>`).join('');
+}
+
+function onHistoryClick(event) {
+  const openId = event.target.closest('[data-open]')?.dataset.open;
+  const deleteId = event.target.closest('[data-delete]')?.dataset.delete;
+  if (!openId && !deleteId) return;
+
+  const list = loadHistory();
+  if (openId) {
+    const entry = list.find((e) => e.id === openId);
+    if (entry) displayResults(entry.result, entry.savedAt);
+  } else {
+    saveHistory(list.filter((e) => e.id !== deleteId));
+    renderHistory();
+  }
+}
+
+renderHistory();
 </script>
 
 </body>
