@@ -11,7 +11,7 @@ if (!block) throw new Error('No <testable> block found in index.html');
 
 const sandbox = {};
 vm.runInNewContext(`${block}
-  this.h = { PDF_MAX_BYTES, HISTORY_MAX, isPdfName, looksLikePdf, pageText, cleanPdfText, fitToLimit,
+  this.h = { PDF_MAX_BYTES, HISTORY_MAX, isPdfName, looksLikePdf, pageLines, cleanPdfText, fitToLimit,
     firstLine, makeHistoryEntry, addToHistory, parseHistory };`, sandbox);
 const h = sandbox.h;
 
@@ -32,16 +32,93 @@ check('PDF header after a little junk is recognised', h.looksLikePdf(bytes('\r\n
 check('PNG renamed to .pdf is rejected', !h.looksLikePdf(bytes('\x89PNG\r\n\x1a\n\0\0\0\rIHDR')));
 check('ZIP/.docx renamed to .pdf is rejected', !h.looksLikePdf(bytes('PK\x03\x04\x14\0\x06\0')));
 
-const page1 = h.pageText([
-  { str: 'ARJUN  MEHTA', hasEOL: true },
-  { str: 'Skills: Python,', hasEOL: false }, { str: ' ', hasEOL: false }, { str: 'SQL', hasEOL: true },
-  { str: '', hasEOL: true }, { str: '', hasEOL: true }, { str: '', hasEOL: true },
-  { str: '   Git   ', hasEOL: false },
+// A pdf.js text item at (x, baseline y), font size `size`. Width is roughly half the size per character.
+const item = (str, x, y, size = 10, width = str.length * size * 0.5) => ({ str, transform: [size, 0, 0, size, x, y], width, height: size });
+const lineTexts = (items) => h.pageLines(items).map((l) => l.text);
+// Text-level helpers: plain strings are lines; G() marks a line that follows a vertical gap.
+const G = (text) => ({ text, gapBefore: true });
+const clean = (...lines) => h.cleanPdfText([lines.map((l) => (typeof l === 'string' ? { text: l, gapBefore: false } : l))]);
+
+const page1 = h.pageLines([
+  item('ARJUN  MEHTA', 50, 800), item('Skills: Python,', 50, 780), item(' ', 125, 780, 10, 3), item('SQL', 128, 780),
+  item('   Git   ', 50, 740),
 ]);
-const text = h.cleanPdfText([page1, 'PAGE TWO']);
+const text = h.cleanPdfText([page1, h.pageLines([item('PAGE TWO', 50, 800)])]);
 check('PDF text keeps lines, collapses spaces and blank runs',
   text === 'ARJUN MEHTA\nSkills: Python, SQL\n\nGit\n\nPAGE TWO', text);
-check('scanned PDF (no text items) gives empty text', h.cleanPdfText([h.pageText([]), h.pageText([{ str: ' ' }])]) === '');
+check('scanned PDF (no text items) gives empty text',
+  h.cleanPdfText([h.pageLines([]), h.pageLines([item(' ', 0, 0)])]) === '');
+
+// Space-gap handling
+let lines = lineTexts([item('Pyth', 50, 700), item('on', 70, 700)]);
+check('pieces with no gap are joined into one word', lines[0] === 'Python', lines);
+lines = lineTexts([item('Python,', 50, 700), item('SQL', 90, 700)]);
+check('pieces with a visible gap get exactly one space', lines[0] === 'Python, SQL', lines);
+lines = lineTexts([item('Docker ', 50, 700), item('FastAPI', 90, 700)]);
+check('no double space when a piece already ends with one', lines[0] === 'Docker FastAPI', lines);
+lines = lineTexts([item('world', 80, 600.4), item('hello', 50, 600), item('next line', 50, 588)]);
+check('pieces are grouped by baseline and ordered left to right', JSON.stringify(lines) === '["hello world","next line"]', lines);
+
+// Wrapped sentence joining
+check('wrapped line starting lowercase is joined',
+  clean('Built a churn model used by the', 'retention team to target 15k accounts.') ===
+  'Built a churn model used by the retention team to target 15k accounts.');
+check('line ending with a connector word is joined', clean('Trained LSTM models on', '50k IMDB reviews.') === 'Trained LSTM models on 50k IMDB reviews.');
+check('line ending with a comma is joined', clean('Python, pandas,', 'NumPy, SQL') === 'Python, pandas, NumPy, SQL');
+check('line starting with "(" is joined', clean('Microsoft Power BI Data Analyst', '(PL-300), 2025') === 'Microsoft Power BI Data Analyst (PL-300), 2025');
+check('word hyphenated across lines keeps its hyphen, no space', clean('Built a customer-', 'facing dashboard.') === 'Built a customer-facing dashboard.');
+check('finished sentence is not joined', clean('Led a team of 4.', 'improved results') === 'Led a team of 4.\nimproved results');
+check('new capitalised line without a connector stays separate',
+  clean('Machine Learning Engineer, Quantiva Labs', 'Built a churn model') === 'Machine Learning Engineer, Quantiva Labs\nBuilt a churn model');
+check('name and contact line stay separate',
+  clean('Kavya Reddy', 'kavya.reddy@email.com | github.com/kavyar') === 'Kavya Reddy\nkavya.reddy@email.com | github.com/kavyar');
+check('title-like line is not joined with the next', clean('Google Data Analytics', 'professional certificate') === 'Google Data Analytics\nprofessional certificate');
+check('wrapped text after a vertical gap is not joined', clean('Worked with', G('pandas daily.')) === 'Worked with\n\npandas daily.');
+
+// Bullet normalisation
+const bullets = clean('• Built a churn model', '● Fine-tuned DistilBERT', '* Served via FastAPI', '– Tracked in MLflow',
+  ' Wrote SQL pipelines', '•', 'Led a RAG prototype', '1. First numbered item');
+check('bullet symbols become "- " (incl. Word Symbol bullets and a bullet on its own line)',
+  bullets === '- Built a churn model\n- Fine-tuned DistilBERT\n- Served via FastAPI\n- Tracked in MLflow\n- Wrote SQL pipelines\n- Led a RAG prototype\n1. First numbered item', bullets);
+check('wrapped bullet text joins its bullet', clean('• Built a churn model used by the', 'retention team') === '- Built a churn model used by the retention team');
+check('a new bullet never joins the previous one', clean('• Worked with', '• Docker') === '- Worked with\n- Docker');
+check('a leading minus sign that is not a bullet is kept', clean('-5% cloud cost') === '-5% cloud cost');
+
+// Heading preservation and blank-line limits
+check('headings get one blank line before and none after',
+  clean('Summary text here.', 'EDUCATION', 'B.Tech IT, 2026', 'Work Experience', 'ML Engineer') ===
+  'Summary text here.\n\nEDUCATION\nB.Tech IT, 2026\n\nWork Experience\nML Engineer');
+check('heading is not joined with a lowercase line', clean('SKILLS:', 'python, sql') === 'SKILLS:\npython, sql');
+check('ALL-CAPS tool list is not treated as a heading', clean('Built X.', 'SQL (SELECT, JOIN)') === 'Built X.\nSQL (SELECT, JOIN)');
+check('blank lines are limited to one, never leading or after a heading',
+  clean(G('First.'), G('Second.'), G('EDUCATION'), G('B.Tech')) === 'First.\n\nSecond.\n\nEDUCATION\nB.Tech');
+check('empty lines collapse into one blank line', clean('A.', '', '   ', G('B.')) === 'A.\n\nB.');
+check('page break gives one blank line', h.cleanPdfText([[{ text: 'Page one ends.' }], [{ text: 'Page two starts.' }]]) === 'Page one ends.\n\nPage two starts.');
+check('tabs and repeated spaces collapse', clean('Python,\t\tpandas    NumPy') === 'Python, pandas NumPy');
+
+// Columns. Two-column page written row by row (as some PDF tools do): left column must come out first.
+const twoCol = [
+  item('PRIYA NAIR', 50, 800, 20), item('priya@x.com | linkedin.com/in/p | Bengaluru', 50, 780),
+  item('SKILLS', 50, 740), item('SUMMARY', 230, 740),
+  item('Excel, Power BI,', 50, 728), item('Accountant moving into', 230, 728),
+  item('SQL, Tally', 50, 716), item('data analytics.', 230, 716),
+  item('EDUCATION', 50, 704), item('EXPERIENCE', 230, 704),
+  item('B.Com, Christ University', 50, 692), item('Senior Accountant, Kaveri', 230, 692),
+];
+const twoColText = h.cleanPdfText([h.pageLines(twoCol)]);
+check('two-column page reads the left column fully, then the right',
+  twoColText === 'PRIYA NAIR\npriya@x.com | linkedin.com/in/p | Bengaluru\n\nSKILLS\nExcel, Power BI, SQL, Tally\n\nEDUCATION\nB.Com, Christ University' +
+  '\n\nSUMMARY\nAccountant moving into data analytics.\n\nEXPERIENCE\nSenior Accountant, Kaveri', twoColText);
+const singleCol = [
+  item('Web Development Intern, PixelCraft', 50, 700), item('May–Jul 2025', 400, 700),
+  item('Built 6 responsive landing pages for client websites and fixed', 50, 688), item('bugs in a PHP admin panel.', 50, 676),
+  item('Data Intern, Harbor Retail', 50, 650), item('Jan–Apr 2025', 400, 650),
+  item('Automated weekly sales reports in Excel for the finance team and', 50, 638), item('store managers.', 50, 626),
+];
+const singleText = h.cleanPdfText([h.pageLines(singleCol)]);
+check('single column with right-aligned dates is not split into columns',
+  singleText === 'Web Development Intern, PixelCraft May–Jul 2025\nBuilt 6 responsive landing pages for client websites and fixed bugs in a PHP admin panel.' +
+  '\n\nData Intern, Harbor Retail Jan–Apr 2025\nAutomated weekly sales reports in Excel for the finance team and store managers.', singleText);
 
 let fit = h.fitToLimit('x'.repeat(15001), 15000);
 check('text over the limit is truncated and flagged', fit.text.length === 15000 && fit.truncated);

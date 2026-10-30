@@ -27,8 +27,11 @@ The API key exists only as a server environment variable. It is never sent to th
 
 - Accepts `.pdf` up to 5 MB, and checks the `%PDF-` header, so a renamed image or `.docx` is rejected.
 - Friendly errors for: not a PDF, over 5 MB, password-protected, damaged, and scanned/image-only PDFs ("This looks like a scanned PDF; paste the text instead").
+- Lines are rebuilt from each text piece's position, so the result reads like a clean resume: wrapped sentences are joined, bullets (`•`, `●`, `*`, Word's Symbol bullets) become `- `, and each section heading gets one blank line before it. Headings, bullets, numbered items and contact lines stay on their own lines.
+- Two-column resumes are detected by a clear vertical gutter. The header comes first, then the left column, then the right.
 - Text over the 15,000-character resume limit is cut, with a visible warning.
 - PDF text only ever goes into a textarea or `textContent`, never `innerHTML`. pdf.js runs with `isEvalSupported: false`.
+- Limitations: a wrapped line that continues with a capital letter (e.g. "Institute of Chartered" / "Accountants of India") stays on two lines. Layouts with three or more columns, tables or text boxes are read in rows, and list bullets drawn as shapes (not characters) don't appear. Always review the text before analyzing.
 
 **Saved history.** After each successful analysis, the result is saved in `localStorage`: date/time, score, prompt version, model, a short label (resume first line → job title), and the full result JSON. The last 10 are kept.
 

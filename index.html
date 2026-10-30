@@ -86,15 +86,13 @@ header .badge {
 }
 
 /* Input Section */
+/* Spacing scale: 8 / 12 / 16 / 24px. */
 .input-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 20px;
+  grid-template-rows: auto 1fr auto auto; /* header, textarea, footer, status */
+  column-gap: 24px;
   margin-bottom: 24px;
-}
-@media (max-width: 768px) {
-  .input-grid { grid-template-columns: 1fr; }
-  header h1 { font-size: 28px; }
 }
 
 .input-card {
@@ -104,11 +102,27 @@ header .badge {
   padding: 24px;
   box-shadow: 0 2px 8px rgba(0,0,0,0.04);
   min-width: 0;
+  display: grid;
+  grid-row: span 4;
+  grid-template-rows: subgrid; /* older browsers ignore this and simply stack the parts */
+}
+@media (max-width: 768px) {
+  .input-grid { grid-template-columns: 1fr; grid-template-rows: none; row-gap: 16px; }
+  .input-card { grid-row: auto; grid-template-rows: none; }
+  header h1 { font-size: 28px; }
+}
+.card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  min-height: 36px;
+  margin-bottom: 12px;
 }
 .input-card h3 {
   font-size: 15px;
   font-weight: 700;
-  margin-bottom: 12px;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -146,42 +160,81 @@ textarea:focus {
 }
 textarea::placeholder { color: #94a3b8; }
 
-.char-count {
+.card-foot {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin-top: 8px;
   font-size: 12px;
   color: var(--muted);
-  text-align: right;
-  margin-top: 6px;
+}
+.upload-hint { min-width: 0; text-align: left; }
+.char-count {
+  margin-left: auto;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 .char-count.over { color: var(--danger); font-weight: 600; }
 
 /* PDF upload */
-.upload-row {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin-bottom: 10px;
-}
 .upload-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 0 16px;
   background: white;
   color: var(--primary);
   border: 2px solid var(--border);
   border-radius: 8px;
-  padding: 6px 14px;
   font-family: inherit;
   font-size: 13px;
   font-weight: 600;
+  white-space: nowrap;
   cursor: pointer;
   transition: border-color 0.2s;
 }
 .upload-btn:hover { border-color: var(--accent); }
 .upload-btn:disabled { opacity: 0.6; cursor: not-allowed; }
-.upload-hint { font-size: 12px; color: var(--muted); }
-.pdf-status { font-size: 13px; margin-bottom: 10px; overflow-wrap: anywhere; }
+
+/* Status message under the resume box. The icon is drawn by ::before so JS only sets text and a class. */
+.pdf-status {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #f8fafc;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 20px;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
 .pdf-status:empty { display: none; }
-.pdf-status.ok { color: var(--success); }
-.pdf-status.warn { color: #b45309; font-weight: 600; }
-.pdf-status.error { color: var(--danger); font-weight: 600; }
+.pdf-status::before {
+  content: '…';
+  flex: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+}
+.pdf-status.ok { background: #f0fdf4; border-color: #bbf7d0; color: #166534; }
+.pdf-status.ok::before { content: '✓'; background: #dcfce7; color: var(--success); }
+.pdf-status.warn { background: #fffbeb; border-color: #fde68a; color: #92400e; font-weight: 600; }
+.pdf-status.warn::before { content: '!'; background: #fef3c7; color: #b45309; }
+.pdf-status.error { background: #fef2f2; border-color: #fecaca; color: #991b1b; font-weight: 600; }
+.pdf-status.error::before { content: '✕'; background: #fee2e2; color: var(--danger); }
 
 /* Analyze Button */
 .analyze-btn {
@@ -479,28 +532,33 @@ footer a:hover { text-decoration: underline; }
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  margin-bottom: 4px;
+  min-height: 36px;
+  margin-bottom: 8px;
 }
 .history-head h4 { margin-bottom: 0; }
 .history-list { list-style: none; }
 .history-item {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 6px 0;
+  gap: 12px;
+  padding: 4px 0;
   border-bottom: 1px solid #f1f5f9;
 }
 .history-item:last-child { border-bottom: none; }
+.history-list .empty-note { padding: 8px 0; }
+/* The negative margin lines the score badge up with the card's text edge; padding keeps a hover area. */
 .history-open {
   flex: 1;
   min-width: 0;
+  min-height: 52px;
   display: flex;
   align-items: center;
   gap: 12px;
+  margin-left: -8px;
+  padding: 8px;
   background: none;
   border: none;
   border-radius: 8px;
-  padding: 6px;
   font: inherit;
   color: inherit;
   text-align: left;
@@ -508,29 +566,39 @@ footer a:hover { text-decoration: underline; }
 }
 .history-open:hover { background: var(--bg); }
 .history-score {
-  min-width: 46px;
-  text-align: center;
+  flex: none;
+  width: 48px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   font-size: 16px;
   font-weight: 800;
+  font-variant-numeric: tabular-nums;
   background: #f1f5f9;
   border-radius: 8px;
-  padding: 4px 8px;
 }
 .history-text { min-width: 0; }
 .history-label {
   display: block;
   font-size: 14px;
   font-weight: 600;
+  line-height: 20px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.history-date { display: block; font-size: 12px; color: var(--muted); }
+.history-date { display: block; font-size: 12px; line-height: 18px; color: var(--muted); }
 .link-btn {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 36px;
+  padding: 0 12px;
   background: none;
   border: none;
-  border-radius: 6px;
-  padding: 4px 8px;
+  border-radius: 8px;
   font-family: inherit;
   font-size: 13px;
   font-weight: 600;
@@ -538,6 +606,18 @@ footer a:hover { text-decoration: underline; }
   cursor: pointer;
 }
 .link-btn:hover { color: var(--danger); background: #fef2f2; }
+
+/* Touch screens (tablet and phone): 44px tap targets. */
+@media (max-width: 768px) {
+  .upload-btn, .link-btn { min-height: 44px; min-width: 44px; }
+  .history-open { min-height: 56px; }
+}
+/* Phones: tighter card padding, and the upload button gets its own full-width row. */
+@media (max-width: 480px) {
+  .input-card, .result-card { padding: 16px; }
+  .upload-btn { width: 100%; }
+  .history-head h4 { font-size: 13px; }
+}
 </style>
 </head>
 <body>
@@ -552,21 +632,28 @@ footer a:hover { text-decoration: underline; }
 
   <!-- Input Section -->
   <div class="input-grid">
+    <!-- Both cards share the same four rows (header, textarea, footer, status) so their parts line up. -->
     <div class="input-card">
-      <h3><span class="icon">📄</span> Your Resume</h3>
-      <div class="upload-row">
+      <div class="card-head">
+        <h3><span class="icon">📄</span> Your Resume</h3>
         <button id="pdfBtn" class="upload-btn" type="button">📎 Upload PDF</button>
         <input id="pdfInput" type="file" accept=".pdf,application/pdf" hidden>
-        <span class="upload-hint">Text-based PDF, max 5 MB. Read in your browser; the file is never uploaded.</span>
+      </div>
+      <textarea id="resume" maxlength="15000" placeholder="Paste your full resume text here...&#10;&#10;Include:&#10;- Work experience&#10;- Skills&#10;- Education&#10;- Projects"></textarea>
+      <div class="card-foot">
+        <span class="upload-hint">Text-based PDF, max 5 MB. Read in your browser; never uploaded.</span>
+        <span class="char-count" id="resumeCount">0 / 15,000</span>
       </div>
       <div class="pdf-status" id="pdfStatus" role="status" aria-live="polite"></div>
-      <textarea id="resume" maxlength="15000" placeholder="Paste your full resume text here...&#10;&#10;Include:&#10;- Work experience&#10;- Skills&#10;- Education&#10;- Projects"></textarea>
-      <div class="char-count" id="resumeCount">0 / 15,000</div>
     </div>
     <div class="input-card">
-      <h3><span class="icon">💼</span> Job Description</h3>
+      <div class="card-head">
+        <h3><span class="icon">💼</span> Job Description</h3>
+      </div>
       <textarea id="jobDesc" maxlength="10000" placeholder="Paste the job description here...&#10;&#10;Include:&#10;- Job title&#10;- Required skills&#10;- Responsibilities&#10;- Qualifications"></textarea>
-      <div class="char-count" id="jobCount">0 / 10,000</div>
+      <div class="card-foot">
+        <span class="char-count" id="jobCount">0 / 10,000</span>
+      </div>
     </div>
   </div>
 
@@ -620,17 +707,168 @@ function looksLikePdf(bytes) {
   return String.fromCharCode(...bytes.subarray(0, 1024)).includes('%PDF-');
 }
 
-// pdf.js returns a page's text in pieces; hasEOL marks the end of a line.
-function pageText(items) {
-  return items.map((item) => (item.str || '') + (item.hasEOL ? '\n' : '')).join('');
+// --- PDF text layout ---
+// pdf.js gives a page's text as pieces with a position: transform[4] is x, transform[5] the baseline y
+// (y grows upwards). We rebuild lines from those positions instead of trusting the PDF's own order.
+function textBox(item) {
+  const [, , c, d, x, y] = item.transform;
+  const size = Math.hypot(c, d) || item.height || 10;
+  return { str: item.str, x, y, size, end: x + (item.width || 0) };
 }
 
+// Pieces on the same baseline form one line, left to right. A space is added only where there is
+// a visible gap, so words split into pieces are not broken apart and separate words are not glued.
+function buildLines(boxes) {
+  const rows = [];
+  for (const box of [...boxes].sort((a, b) => b.y - a.y || a.x - b.x)) {
+    const row = rows.at(-1);
+    if (row && Math.abs(row.y - box.y) <= Math.min(row.size, box.size) * 0.5) row.boxes.push(box);
+    else rows.push({ y: box.y, size: box.size, boxes: [box] });
+  }
+  return rows.map((row, i) => {
+    const parts = row.boxes.sort((a, b) => a.x - b.x);
+    let text = '';
+    parts.forEach((box, n) => {
+      const prev = parts[n - 1];
+      if (prev && !/\s$/.test(prev.str) && !/^\s/.test(box.str) && box.x - prev.end > prev.size * 0.2) text += ' ';
+      text += box.str;
+    });
+    const above = rows[i - 1];
+    return { text, gapBefore: !!above && above.y - row.y > Math.max(above.size, row.size) * 1.7 };
+  });
+}
+
+// Two-column resumes: look for a vertical gutter in the middle of the page that no text crosses,
+// except a header (name, contact line) above both columns. Returns null for single-column pages,
+// including ones with right-aligned dates, because their full-width lines cross every gutter.
+function findColumns(boxes) {
+  const text = boxes.filter((b) => b.str.trim());
+  if (text.length < 8) return null;
+  const chars = (list) => list.reduce((n, b) => n + b.str.trim().length, 0);
+  const total = chars(text);
+  const minX = Math.min(...text.map((b) => b.x));
+  const width = Math.max(...text.map((b) => b.end)) - minX;
+
+  function splitAt(gx) {
+    const left = text.filter((b) => b.end <= gx);
+    const right = text.filter((b) => b.x >= gx);
+    if (!left.length || !right.length) return null;
+    const colTop = Math.min(Math.max(...left.map((b) => b.y)), Math.max(...right.map((b) => b.y)));
+    const isHeader = (b) => b.y > colTop + b.size * 0.5;
+    if (text.some((b) => b.end > gx && b.x < gx && !isHeader(b))) return null;
+    const leftBody = left.filter((b) => !isHeader(b));
+    const rightBody = right.filter((b) => !isHeader(b));
+    if (leftBody.length < 3 || rightBody.length < 3) return null;
+    if (chars(leftBody) < total * 0.15 || chars(rightBody) < total * 0.15) return null;
+    return { gx, isHeader };
+  }
+
+  // Take the middle of the widest run of valid gutter positions.
+  let best = null;
+  let run = null;
+  for (let gx = minX + width * 0.2; gx <= minX + width * 0.8; gx += 2) {
+    if (splitAt(gx)) {
+      run = run || { from: gx };
+      run.to = gx;
+      if (!best || run.to - run.from > best.to - best.from) best = { ...run };
+    } else {
+      run = null;
+    }
+  }
+  if (!best) return null;
+  const { gx, isHeader } = splitAt((best.from + best.to) / 2) || splitAt(best.from);
+  const side = (b) => (isHeader(b) ? 'header' : (b.x + b.end) / 2 < gx ? 'left' : 'right');
+  return {
+    header: boxes.filter((b) => side(b) === 'header'),
+    left: boxes.filter((b) => side(b) === 'left'),
+    right: boxes.filter((b) => side(b) === 'right'),
+  };
+}
+
+// One page of pdf.js text items → lines, reading a left column fully before the right one.
+function pageLines(items) {
+  const boxes = items.filter((item) => item.str && item.transform).map(textBox);
+  const columns = findColumns(boxes);
+  if (!columns) return buildLines(boxes);
+  return [columns.header, columns.left, columns.right].filter((part) => part.length).flatMap((part, i) => {
+    const lines = buildLines(part);
+    if (i > 0) lines[0].gapBefore = true;
+    return lines;
+  });
+}
+
+//  and  are the Symbol-font bullets that Word exports.
+const BULLET_RE = /^(?:[•●▪■◦‣∙○·]|[-–—*](?=\s))\s*/;
+const NUMBERED_RE = /^\d{1,2}[.)]\s/;
+const SECTION_RE = /^(?:(?:professional|work|technical|key|relevant|academic)\s+)?(?:summary|profile|objective|education|skills|projects|experience|employment|certifications?|achievements|awards|publications|languages|interests|hobbies|contact|volunteering|courses|training)(?:\s+(?:&|and)\s+\w+)?:?$/i;
+const CONNECTOR_RE = /(?:,|\b(?:and|or|of|to|with|for|in|the|a|an|by|on|at|from|using|via|as|&))$/i;
+
+function isSectionHeading(line) {
+  return SECTION_RE.test(line) || (/^[A-Z][A-Z &/-]{3,38}:?$/.test(line) && line.split(' ').length <= 5);
+}
+
+// Short lines where every word is capitalised, like a name or "Google Data Analytics".
+function isTitleLike(line) {
+  const words = line.split(' ');
+  return !/[.,;:!?]$/.test(line) && words.length <= 8 &&
+    words.every((w) => !/^[a-z]/.test(w) || /^(?:of|and|for|the|in|at|to|a|an)$/.test(w));
+}
+
+function isContactLine(line) {
+  return /@|https?:\/\/|www\.|linkedin\.|github\.|\+?\d[\d ()-]{8,}\d| [|·] /i.test(line);
+}
+
+function isListItem(line) {
+  return line.startsWith('- ') || NUMBERED_RE.test(line);
+}
+
+// A wrapped line continues the previous one only if that line has not ended, and nothing marks
+// the next one as new: a heading, bullet, contact line or a vertical gap.
+function continuesLine(prev, next) {
+  const t = next.text;
+  if (next.gapBefore || isSectionHeading(prev) || isContactLine(prev) || isSectionHeading(t) || isListItem(t) || isContactLine(t)) return false;
+  if (/[.!?;:]$/.test(prev)) return false;
+  if (t.startsWith('(')) return true;
+  if (isTitleLike(prev)) return false;
+  return /^[a-z&]/.test(t) || CONNECTOR_RE.test(prev);
+}
+
+// pages: one array of { text, gapBefore } lines per page (from pageLines). Returns resume-shaped text:
+// wrapped sentences joined, bullets as "- ", one blank line between sections and none after a heading.
 function cleanPdfText(pages) {
-  return pages.join('\n\n')
-    .replace(/[ \t ]+/g, ' ')
-    .replace(/ *\n */g, '\n')
-    .replace(/\n{3,}/g, '\n\n')
-    .trim();
+  const lines = [];
+  let gap = false;
+  let pendingBullet = false;
+  pages.forEach((page, p) => page.forEach((line, i) => {
+    let text = line.text.replace(/[\s ]+/g, ' ').trim();
+    gap = gap || line.gapBefore || (p > 0 && i === 0);
+    if (!text) { gap = true; return; }
+    if (BULLET_RE.test(text)) text = `- ${text.replace(BULLET_RE, '')}`.trim();
+    if (text === '-') { pendingBullet = true; return; } // a bullet drawn on its own, before its text
+    if (pendingBullet && !text.startsWith('- ')) text = `- ${text}`;
+    pendingBullet = false;
+    lines.push({ text, gapBefore: gap });
+    gap = false;
+  }));
+
+  const merged = [];
+  for (const line of lines) {
+    const prev = merged.at(-1);
+    if (prev && continuesLine(prev.text, line)) {
+      const hyphenated = /[A-Za-z]-$/.test(prev.text) && /^[a-z]/.test(line.text);
+      prev.text += hyphenated ? line.text : ` ${line.text}`;
+    } else {
+      merged.push({ ...line });
+    }
+  }
+
+  const out = [];
+  merged.forEach((line, i) => {
+    const afterHeading = i > 0 && isSectionHeading(merged[i - 1].text);
+    if (i > 0 && !afterHeading && (line.gapBefore || isSectionHeading(line.text))) out.push('');
+    out.push(line.text);
+  });
+  return out.join('\n');
 }
 
 function fitToLimit(text, max) {
@@ -919,7 +1157,7 @@ async function readPdf(file) {
     const pages = [];
     for (let n = 1; n <= doc.numPages; n++) {
       const page = await doc.getPage(n);
-      pages.push(pageText((await page.getTextContent()).items));
+      pages.push(pageLines((await page.getTextContent()).items));
     }
     return { text: cleanPdfText(pages), pageCount: doc.numPages };
   } finally {
