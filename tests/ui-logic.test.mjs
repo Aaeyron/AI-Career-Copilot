@@ -12,7 +12,8 @@ if (!block) throw new Error('No <testable> block found in index.html');
 const sandbox = {};
 vm.runInNewContext(`${block}
   this.h = { PDF_MAX_BYTES, HISTORY_MAX, isPdfName, looksLikePdf, pageLines, cleanPdfText, fitToLimit,
-    firstLine, makeHistoryEntry, addToHistory, parseHistory };`, sandbox);
+    firstLine, makeHistoryEntry, addToHistory, parseHistory,
+    IMAGE_MAX_BYTES, OCR_MAX_SIDE, isImageName, imageKind, scaleToFit, averageLuminance, cleanOcrText, assessOcr };`, sandbox);
 const h = sandbox.h;
 
 let failures = 0;
@@ -150,6 +151,46 @@ check('non-array storage gives an empty history', h.parseHistory('{"a":1}').leng
 check('missing storage gives an empty history', h.parseHistory(null).length === 0);
 const mixed = JSON.stringify([entry, { id: 'x', score: '99', result: {} }, null, { id: 'y', score: 5 }]);
 check('malformed entries are dropped', h.parseHistory(mixed).length === 1, h.parseHistory(mixed));
+
+// Job description image upload (OCR)
+check('image size limit is 5 MB and OCR long side is 2000px', h.IMAGE_MAX_BYTES === 5 * 1024 * 1024 && h.OCR_MAX_SIDE === 2000);
+check('png / jpg / jpeg / webp names are accepted (any case)',
+  ['jd.png', 'JD.JPG', 'shot.jpeg', 'a.WebP'].every((name) => h.isImageName({ name, type: '' })));
+check('a pasted screenshot is accepted by its type', h.isImageName({ name: '', type: 'image/png' }));
+check('gif, pdf and txt are rejected',
+  !h.isImageName({ name: 'a.gif', type: 'image/gif' }) && !h.isImageName({ name: 'a.pdf', type: 'application/pdf' }) && !h.isImageName({ name: 'a.txt', type: 'text/plain' }));
+check('PNG header is recognised', h.imageKind(bytes('\x89PNG\r\n\x1a\n\0\0\0\rIHDR')) === 'png');
+check('JPEG header is recognised', h.imageKind(bytes('\xff\xd8\xff\xe0\0\x10JFIF')) === 'jpeg');
+check('WebP header is recognised', h.imageKind(bytes('RIFF\x24\0\0\0WEBPVP8 ')) === 'webp');
+check('text, PDF, GIF and a RIFF that is not WebP are rejected',
+  [bytes('Job title: Data Analyst'), bytes('%PDF-1.7\n'), bytes('GIF89a\x01\0'), bytes('RIFF\x24\0\0\0WAVEfmt ')].every((b) => h.imageKind(b) === null));
+check('empty file is rejected', h.imageKind(new Uint8Array(0)) === null);
+
+let size = h.scaleToFit(4000, 1000, 2000);
+check('wide image is scaled to 2000px on the long side', size.width === 2000 && size.height === 500, size);
+size = h.scaleToFit(1500, 3000, 2000);
+check('tall image is scaled to 2000px on the long side', size.width === 1000 && size.height === 2000, size);
+size = h.scaleToFit(800, 600, 2000);
+check('small image is not enlarged', size.width === 800 && size.height === 600, size);
+
+const pixelsOf = (rgb, n = 64) => Uint8ClampedArray.from({ length: n * 4 }, (_, i) => (i % 4 === 3 ? 255 : rgb[i % 4]));
+check('white screenshot is bright, dark-mode screenshot is dark',
+  h.averageLuminance(pixelsOf([255, 255, 255]), 1) === 255 && h.averageLuminance(pixelsOf([30, 30, 36]), 1) < 110);
+check('empty pixel data counts as bright (never inverted)', h.averageLuminance(new Uint8ClampedArray(0)) === 255);
+
+const ocr = h.cleanOcrText('  Data   Analyst\t\tIntern \r\n\r\n\r\n\r\nRequirements:\n• SQL and Excel\n© Power BI dashboards\n» Python (pandas)\n* Clear  communication\n– Retail background\n•\n\n\n-5% churn target');
+check('OCR text: spaces collapsed, one blank line max, bullets become "- ", lone bullets dropped',
+  ocr === 'Data Analyst Intern\n\nRequirements:\n- SQL and Excel\n- Power BI dashboards\n- Python (pandas)\n- Clear communication\n- Retail background\n\n-5% churn target', ocr);
+check('OCR text of only whitespace is empty', h.cleanOcrText('  \n\n \t ') === '' && h.cleanOcrText(undefined) === '');
+fit = h.fitToLimit('y'.repeat(10500), 10000);
+check('OCR text over the 10,000 job description limit is truncated and flagged', fit.text.length === 10000 && fit.truncated);
+
+check('no readable text: a photo gives only a few stray characters', h.assessOcr('| ~ = A1 ._ ;', 41) === 'none');
+check('no readable text: lots of junk letters at very low confidence (real output for a landscape photo)',
+  h.assessOcr('PEE pe\noe aE es pe\noo gf ee a EE\nLE niin, Yoo mea Gl Cs ei ee', 15) === 'none');
+check('low confidence is flagged for review', h.assessOcr('Junior Data Analyst at Harbor Retail Group', 55) === 'low');
+check('normal confidence is ok (70 is the boundary)',
+  h.assessOcr('Junior Data Analyst at Harbor Retail Group', 70) === 'ok' && h.assessOcr('Junior Data Analyst at Harbor Retail Group', 92) === 'ok');
 
 // No emoji in the UI or docs: icons are inline SVG. Pictographs, the old ✓ ✕ ⚠ glyphs and emoji
 // variation selectors all fail. TEST_PLAN.md (sample resumes) and this file's test data are not scanned.

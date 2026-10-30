@@ -33,6 +33,8 @@ The API key exists only as a server environment variable. It is never sent to th
 - PDF text only ever goes into a textarea or `textContent`, never `innerHTML`. pdf.js runs with `isEvalSupported: false`.
 - Limitations: a wrapped line that continues with a capital letter (e.g. "Institute of Chartered" / "Accountants of India") stays on two lines. Layouts with three or more columns, tables or text boxes are read in rows, and list bullets drawn as shapes (not characters) don't appear. Always review the text before analyzing.
 
+**Job description from a screenshot.** Click **Upload image** in the Job Description card, or drop or paste (Ctrl+V) a PNG, JPG or WebP screenshot up to 5 MB onto it. Text is read in the browser with [Tesseract.js](https://github.com/naptha/tesseract.js) 6.0.1, loaded from jsDelivr only on first use (about 7 MB, pinned versions). The image is never uploaded. The file type is checked from its header bytes, big images are scaled down to 2000 px, dark-mode screenshots are inverted, and low-confidence results get a "please review" warning.
+
 **Saved history.** After each successful analysis, the result is saved in `localStorage`: date/time, score, prompt version, model, a short label (resume first line → job title), and the full result JSON. The last 10 are kept.
 
 - Click an entry to show that result again without calling the API (no quota used). Each entry has **Delete**, and there is **Clear all**.
